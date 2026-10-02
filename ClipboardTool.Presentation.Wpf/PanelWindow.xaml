@@ -191,7 +191,8 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <!-- 页脚：左右 16、顶部细分隔线、mono 10.5；组间 8、组内 4，chip 高 16/字 9.5 -->
+                <!-- 页脚：左右 16、顶部细分隔线、mono 10.5；左侧计数，右侧六组键位提示（组间 8、组内 4，chip 高 16/字 9.5）
+                     数据源 = 原型注册表（prototype.js footer groups），T04 起由键位注册表按模式生成 -->
                 <Border Grid.Row="2"
                         BorderThickness="0,1,0,0"
                         BorderBrush="{DynamicResource Brush.Border.Subtle}"
@@ -203,28 +204,49 @@
                                    FontSize="10.5"
                                    Foreground="{DynamicResource Brush.Text.Tertiary}"
                                    VerticalAlignment="Center" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <!-- 页脚只列面板可见时真实生效的键（F45；呼出键展示归托盘菜单）：浏览态 Esc 停靠（F18） -->
-                            <StackPanel Orientation="Horizontal">
-                                <Border Height="16" MinWidth="18" CornerRadius="5" Padding="5,0"
-                                        Background="{DynamicResource Brush.Input}"
-                                        BorderBrush="{DynamicResource Brush.Border.Strong}"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding DockKeyText}"
-                                               FontFamily="{StaticResource Font.Mono}"
-                                               FontSize="9.5"
-                                               Foreground="{DynamicResource Brush.Text.Secondary}"
-                                               VerticalAlignment="Center" />
-                                </Border>
-                                <TextBlock Text="停靠"
-                                           Margin="4,0,0,0"
-                                           FontFamily="{StaticResource Font.Mono}"
-                                           FontSize="10.5"
-                                           Foreground="{DynamicResource Brush.Text.Tertiary}"
-                                           VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding FooterHints}"
+                                      AlternationCount="6"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Margin" Value="8,0,0,0" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AlternationIndex, RelativeSource={RelativeSource Self}}" Value="0">
+                                            <Setter Property="Margin" Value="0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Border Height="16" MinWidth="18" CornerRadius="5" Padding="5,0"
+                                                Background="{DynamicResource Brush.Input}"
+                                                BorderBrush="{DynamicResource Brush.Border.Strong}"
+                                                BorderThickness="1"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Keys}"
+                                                       FontFamily="{StaticResource Font.Mono}"
+                                                       FontSize="9.5"
+                                                       Foreground="{DynamicResource Brush.Text.Secondary}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                        <TextBlock Text="{Binding Action}"
+                                                   Margin="4,0,0,0"
+                                                   FontFamily="{StaticResource Font.Mono}"
+                                                   FontSize="10.5"
+                                                   Foreground="{DynamicResource Brush.Text.Tertiary}"
+                                                   VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </Grid>
                 </Border>
             </Grid>

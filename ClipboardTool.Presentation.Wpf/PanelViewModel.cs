@@ -1,5 +1,3 @@
-using ClipboardTool.Domain.Hotkeys;
-
 namespace ClipboardTool.Presentation.Wpf;
 
 /// <summary>面板视图模型骨架：占位条目驱动虚拟化列表；真实剪贴历史流归 T02。</summary>
@@ -10,8 +8,22 @@ public sealed class PanelViewModel
 
     public string CountText => $"{Items.Count} 条";
 
-    /// <summary>浏览态停靠键展示（F18），由键位计划推导（「提示 = 行为」硬约束，不写死键名）。</summary>
-    public string DockKeyText => HotkeyPlan.BrowseDock.DisplayName;
+    /// <summary>
+    /// 页脚六组提示（F45）。键名字形与动作文案逐字对齐原型注册表
+    /// （prototype.js：labels ArrowUp→↑、ArrowDown→↓、Enter→⏎、Escape→Esc、z→Z、b→B、Delete→Del）。
+    /// T01 骨架静态呈现；T04 起改由键位注册表按面板模式生成，未生效的键不再展示（提示 = 行为）。
+    /// </summary>
+    public IReadOnlyList<FooterHint> FooterHints { get; } =
+    [
+        new("↑↓", "选择"),
+        new("⏎", "复制"),
+        new("Z", "置顶"),
+        new("B", "备注"),
+        new("Del", "删除"),
+        new("Esc", "隐藏"),
+    ];
+
+    public sealed record FooterHint(string Keys, string Action);
 
     /// <summary>搜索键 chip 归 T04 键位注册表；为空时搜索井不显示 chip。</summary>
     public string SearchKeyText => string.Empty;
