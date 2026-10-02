@@ -53,8 +53,9 @@
 
     <!-- 外壳：四边 1 DIP 安全留白，2 DIP #757575 实线，36 DIP 圆角，两主题同色。
          WPF Border 的绘制顺序是背景→描边→子内容：通栏页脚的方角会伸进描边内圆角的角落扇区、
-         从内侧盖掉弧线，故内层三行 Grid（ShellRows，原点=描边内缘）按内圆角 r34 裁剪，
-         等价原型的 overflow:hidden；描边本身不在被裁子树中，保持完整。 -->
+         从内侧盖掉弧线，故内层三行 Grid（ShellRows，原点=描边内缘）按内圆角让位裁剪；
+         描边之外再补描一层同样的环（不参与命中测试）：描边外圈抗锯齿像素与窗外桌面混合，
+         桌面亮暗会让圆角观感粗细不一，双层叠涂使 fringe 趋于不透明，四角粗细一致 -->
     <Grid Margin="1" Background="Transparent">
         <Border CornerRadius="36"
                 BorderThickness="2"
@@ -270,5 +271,12 @@
                 </Border>
             </Grid>
         </Border>
+
+        <!-- 描边补描层（最上层）：与主描边同环，fringe 叠涂后四角粗细一致；不参与命中测试 -->
+        <Border CornerRadius="36"
+                BorderThickness="2"
+                BorderBrush="{DynamicResource Brush.Window.Ring}"
+                Background="Transparent"
+                IsHitTestVisible="False" />
     </Grid>
 </Window>

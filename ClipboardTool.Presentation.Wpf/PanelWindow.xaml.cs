@@ -17,9 +17,16 @@ public partial class PanelWindow : Window
     private const double FallbackMonitorHeightPx = 1080;
     private const double FallbackDpiScale = 1.0;
 
-    /// <summary>外壳圆角与描边（与 PanelWindow.xaml 保持一致）；内容裁剪半径 = 圆角 − 描边。</summary>
+    /// <summary>外壳圆角与描边（与 PanelWindow.xaml 保持一致）；内容裁剪半径 = 圆角 − 描边 − 让位。</summary>
     private const double ShellCornerRadiusDip = 36;
     private const double ShellBorderThicknessDip = 2;
+
+    /// <summary>
+    /// 裁剪弧相对描边内缘再让位 1 DIP：裁剪与描边内曲线重合时，裁剪的抗锯齿边缘会把
+    /// 页脚底色混进描边内圈像素，底部圆角观感变细；让位后描边 fringe 落在与页脚同色的
+    /// 外壳底色上，圆角粗细四角一致。
+    /// </summary>
+    private const double ShellClipInsetDip = 1;
 
     private readonly ScreenMetricsProvider _screens = new();
     private bool _docked = true;
@@ -56,7 +63,7 @@ public partial class PanelWindow : Window
 
     private void UpdateShellClip()
     {
-        var radius = ShellCornerRadiusDip - ShellBorderThicknessDip;
+        var radius = ShellCornerRadiusDip - ShellBorderThicknessDip - ShellClipInsetDip;
         var clip = new RectangleGeometry(new Rect(new Point(0, 0), ShellRows.RenderSize), radius, radius);
         clip.Freeze();
         ShellRows.Clip = clip;
