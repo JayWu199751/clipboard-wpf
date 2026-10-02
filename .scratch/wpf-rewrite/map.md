@@ -71,4 +71,12 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
 - 2026-10-03：工作流前置就绪（本地 tracker/分诊标签/领域文档布局）；四项发布决策已拍板并落 [ADR-0001](../../docs/adr/0001-发布形态与最低系统.md)。
 - 2026-10-03：**P1 焦点试验 9/9 通过**（[prototype/p1-focus-noactivate/REPORT.md](../../prototype/p1-focus-noactivate/REPORT.md)）——浏览态不抢焦点、输入态 AttachThreadInput 级联可激活、真实键入到达、Esc 归还、停靠屏外不销毁同 HWND 复用。结论落 [ADR-0002](../../docs/adr/0002-面板焦点与停靠策略.md)，T01 阻塞解除。
 - 2026-10-03：T01 工单已建：[issues/01-空WPF骨架与HUD.md](issues/01-空WPF骨架与HUD.md)（ready-for-agent）。
+- 2026-10-03：**to-tickets 完成，13 张工单全部发布**（用户确认拆分）。编号对照：实现票
+  [01](issues/01-空WPF骨架与HUD.md)=T01、[03](issues/03-T02文字复制粘贴闭环.md)=T02、[04](issues/04-T03旧档与身份落位.md)=T03、
+  [05](issues/05-T04四态键位与搜索.md)=T04、[06](issues/06-T05置顶备注延迟删除.md)=T05、[09](issues/09-T06图片链路.md)=T06、
+  [11](issues/11-T07系统集成.md)=T07、[12](issues/12-T08提权与安装.md)=T08、[13](issues/13-T09收尾验收与切换.md)=T09；
+  试验票 [02](issues/02-P2提权焦点恢复试验.md)=P2、[07](issues/07-P3DIBV5透明截图试验.md)=P3、
+  [08](issues/08-P4变高卡片虚拟化试验.md)=P4、[10](issues/10-P5跨DPI圆角穿透试验.md)=P5。
+  P1 不占编号（已完成，REPORT 在 prototype/p1-focus-noactivate/）。
+  当前沿（阻塞全解可立即开工）：01 骨架、02 P2、07 P3、08 P4、10 P5。
 - 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；正式内存门槛推迟到旧版基线实测后。
