@@ -79,4 +79,10 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   [08](issues/08-P4变高卡片虚拟化试验.md)=P4、[10](issues/10-P5跨DPI圆角穿透试验.md)=P5。
   P1 不占编号（已完成，REPORT 在 prototype/p1-focus-noactivate/）。
   当前沿（阻塞全解可立即开工）：01 骨架、02 P2、07 P3、08 P4、10 P5。
+- 2026-10-03：**T01 完成（提交 91aef9f）**：五工程骨架 + `ClipboardTool.sln`/`global.json`/`.gitignore`；
+  Domain PanelGeometry/HotkeyPlan 18 例测试全绿（尺寸三档、落位/停靠公式、差量、DisplayName）；Presentation/Infrastructure 按 ADR-0002 落地。
+  本机 2560×1600@175% 回读验证：呼出 929,128/700×1400 物理px=400×800 DIP、停靠 2595,56、全程前台不变、同 HWND、样式 0x8080008（NOACTIVATE|TOOLWINDOW|TOPMOST）；
+  键位按状态差量（停靠 {呼出键}/浏览 {呼出键,Esc 停靠}，F18 让位模型）；呼出落地三条件回读（legacy landing_verdict）；明暗 token 字典逐值对齐 theme.css；
+  tools/BaselineSampler 四指标 CSV。评审发现并修复 bug：DockStateChanged 先于 Attach 触发致热键注册到空 HWND（执行者现暴露 Attached 并忽略未挂接 ApplyPlan）。
+  待人工：真实键盘 WM_HOTKEY 送达、IME、多屏 DPI 交叉、托盘点击（见[工单证据记录](issues/01-空WPF骨架与HUD.md)）。01 票 Execution 已置 resolved。
 - 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；正式内存门槛推迟到旧版基线实测后。
