@@ -87,3 +87,4 @@ T01 交付完成（提交 91aef9f）。五工程骨架 + `ClipboardTool.sln`（�
 ## Comments
 
 - 2026-10-03（用户反馈修复）：真机发现页脚通栏背景与 Esc chip 以方角超出外壳圆角、盖掉底部两角描边——根因是 WPF Border 不像原型 CSS `overflow:hidden` 那样裁剪子内容。修复（同日提交）：外壳内容 Grid 按内圆角（36−2=34 DIP）RectangleGeometry 裁剪，随 SizeChanged 更新；页脚 kbd chip MinWidth 14→18（原型 .kbd 基准值，14 仅 ≤340 窄档）。修复后截图对比：底部两角描边曲线完整、页脚随圆角收尾（artifacts/before-footer*.png / after-footer*.png，未入库）。
+- 2026-10-03（用户反馈二次修复）：底部描边弧线仍被盖——根因更深一层：WPF Border 绘制顺序是背景→描边→子内容，页脚排布矩形的方角伸进描边内圆角的角落扇区、从内侧盖掉弧线；且上一轮把裁剪挂在外层 Grid，其裁剪弧（圆心在窗外角内缩 34）与描边内曲线（圆心再内缩 2）不重合，角落处反而削到描边。修复：裁剪移到内层三行 Grid（ShellRows，原点=描边内缘），r34 裁剪弧与描边内曲线完全重合，描边不在被裁子树中。像素测量：左右上下四边描边均为 4px（2 DIP@175%≈3.5px+抗锯齿），左下角对角线弧线灰像素连续（artifacts/after2-*.png）。

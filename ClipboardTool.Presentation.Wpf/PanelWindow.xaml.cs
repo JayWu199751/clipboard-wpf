@@ -47,17 +47,19 @@ public partial class PanelWindow : Window
     private IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
 
     /// <summary>
-    /// 外壳内容按内圆角裁剪（对齐原型的 overflow:hidden + border-radius）。
-    /// WPF Border 不裁子内容：页脚等通栏背景会以方角盖过底部圆角与描边。
+    /// 内层三行 Grid 按内圆角裁剪（对齐原型的 overflow:hidden + border-radius）。
+    /// WPF Border 绘制顺序为背景→描边→子内容：页脚等通栏背景的方角会伸进描边内圆角的
+    /// 角落扇区、从内侧盖掉弧线。ShellRows 的原点正是描边内缘，r34 裁剪弧与描边内曲线
+    /// （CornerRadius−Thickness，圆心再内缩 Thickness）完全重合，既挡住越线又不伤描边。
     /// </summary>
-    private void OnShellContentSizeChanged(object sender, SizeChangedEventArgs e) => UpdateShellClip();
+    private void OnShellRowsSizeChanged(object sender, SizeChangedEventArgs e) => UpdateShellClip();
 
     private void UpdateShellClip()
     {
         var radius = ShellCornerRadiusDip - ShellBorderThicknessDip;
-        var clip = new RectangleGeometry(new Rect(new Point(0, 0), ShellContent.RenderSize), radius, radius);
+        var clip = new RectangleGeometry(new Rect(new Point(0, 0), ShellRows.RenderSize), radius, radius);
         clip.Freeze();
-        ShellContent.Clip = clip;
+        ShellRows.Clip = clip;
     }
 
     /// <summary>再次呼出键：停靠时呼出，落地时停靠。</summary>
