@@ -83,3 +83,7 @@ T01 交付完成（提交 91aef9f）。五工程骨架 + `ClipboardTool.sln`（�
 6. **采样**：`tools/BaselineSampler`——`--pid/--interval-ms/--duration-ms/--out`，四指标 CSV，自动建输出目录，Ctrl+C 优雅退出。
 
 后续工单衔接：搜索井 chip/页脚注册表归 T04，三态主题偏好切换归 T07，粘贴链与真实历史归 T02，五档托盘图标归 T07。
+
+## Comments
+
+- 2026-10-03（用户反馈修复）：真机发现页脚通栏背景与 Esc chip 以方角超出外壳圆角、盖掉底部两角描边——根因是 WPF Border 不像原型 CSS `overflow:hidden` 那样裁剪子内容。修复（同日提交）：外壳内容 Grid 按内圆角（36−2=34 DIP）RectangleGeometry 裁剪，随 SizeChanged 更新；页脚 kbd chip MinWidth 14→18（原型 .kbd 基准值，14 仅 ≤340 窄档）。修复后截图对比：底部两角描边曲线完整、页脚随圆角收尾（artifacts/before-footer*.png / after-footer*.png，未入库）。

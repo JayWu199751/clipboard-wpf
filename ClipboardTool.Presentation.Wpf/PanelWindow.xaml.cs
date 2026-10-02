@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using ClipboardTool.Domain.Geometry;
 using ClipboardTool.Infrastructure.Windows;
 
@@ -15,6 +16,10 @@ public partial class PanelWindow : Window
 {
     private const double FallbackMonitorHeightPx = 1080;
     private const double FallbackDpiScale = 1.0;
+
+    /// <summary>外壳圆角与描边（与 PanelWindow.xaml 保持一致）；内容裁剪半径 = 圆角 − 描边。</summary>
+    private const double ShellCornerRadiusDip = 36;
+    private const double ShellBorderThicknessDip = 2;
 
     private readonly ScreenMetricsProvider _screens = new();
     private bool _docked = true;
@@ -40,6 +45,20 @@ public partial class PanelWindow : Window
     public bool IsDocked => _docked;
 
     private IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
+
+    /// <summary>
+    /// 外壳内容按内圆角裁剪（对齐原型的 overflow:hidden + border-radius）。
+    /// WPF Border 不裁子内容：页脚等通栏背景会以方角盖过底部圆角与描边。
+    /// </summary>
+    private void OnShellContentSizeChanged(object sender, SizeChangedEventArgs e) => UpdateShellClip();
+
+    private void UpdateShellClip()
+    {
+        var radius = ShellCornerRadiusDip - ShellBorderThicknessDip;
+        var clip = new RectangleGeometry(new Rect(new Point(0, 0), ShellContent.RenderSize), radius, radius);
+        clip.Freeze();
+        ShellContent.Clip = clip;
+    }
 
     /// <summary>再次呼出键：停靠时呼出，落地时停靠。</summary>
     public void ToggleSummon()

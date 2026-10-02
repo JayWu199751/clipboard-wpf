@@ -44,8 +44,9 @@
         </Style>
     </Window.Resources>
 
-    <!-- 外壳：四边 1 DIP 安全留白，2 DIP #757575 实线，36 DIP 圆角，两主题同色 -->
-    <Grid Margin="1" Background="Transparent">
+    <!-- 外壳：四边 1 DIP 安全留白，2 DIP #757575 实线，36 DIP 圆角，两主题同色；
+         子内容经 ShellContent 按内圆角裁剪（对齐原型 overflow:hidden，否则通栏页脚方角盖过底部圆角） -->
+    <Grid x:Name="ShellContent" Margin="1" Background="Transparent" SizeChanged="OnShellContentSizeChanged">
         <Border CornerRadius="36"
                 BorderThickness="2"
                 BorderBrush="{DynamicResource Brush.Window.Ring}"
@@ -203,7 +204,7 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                             <!-- 页脚只列面板可见时真实生效的键（F45；呼出键展示归托盘菜单）：浏览态 Esc 停靠（F18） -->
                             <StackPanel Orientation="Horizontal">
-                                <Border Height="16" MinWidth="14" CornerRadius="5" Padding="5,0"
+                                <Border Height="16" MinWidth="18" CornerRadius="5" Padding="5,0"
                                         Background="{DynamicResource Brush.Input}"
                                         BorderBrush="{DynamicResource Brush.Border.Strong}"
                                         BorderThickness="1"
