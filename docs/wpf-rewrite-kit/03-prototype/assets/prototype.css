@@ -1,0 +1,40 @@
+/* 本文件只布置原型舞台和演示工具；HUD 复用当前正式样式。 */
+body { background: #e6e6ea; overflow: auto; color: #292931; }
+.demo-layout { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 70px; padding: 0 8vw; align-items: center; }
+.demo-stage { position: relative; display: grid; place-items: center; height: 100vh; min-height: 100vh; align-self: start; }
+.demo-caption { position: absolute; top: 12px; display: flex; gap: 16px; font: 10px var(--font-mono); color: #73737e; letter-spacing: .5px; }
+.demo-stage .desktop { --panel-height: calc(100vh * .875); width: calc(var(--panel-height) / 2); height: var(--panel-height); min-height: 0; max-width: 100%; container-type: inline-size; }
+.demo-stage .toast-stack { position: absolute; max-width: calc(100% - 24px); }
+.demo-stage .toast { max-width: 100%; }
+.demo-stage .toast__msg { overflow: hidden; text-overflow: ellipsis; }
+.demo-stage .shortcut-card { max-width: calc(100% - 32px); }
+.demo-tools { width: 300px; padding: 34px 0; align-self: center; font-family: 'Segoe UI', system-ui, sans-serif; }
+.demo-eyebrow,.demo-label { font-size: 10px; letter-spacing: 1.3px; color: #747481; }
+.demo-tools h1 { margin: 16px 0 18px; font-size: 32px; line-height: 1.35; font-weight: 600; letter-spacing: -.7px; }
+.demo-intro { font-size: 13px; line-height: 1.8; color: #6a6a76; margin-bottom: 24px; }
+.demo-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.demo-tools button { border: 1px solid #c6c6d0; background: #f5f5f7; color: #444450; border-radius: 8px; padding: 9px 12px; font-size: 12px; }
+.demo-tools button:hover { border-color: #7771c4; }
+.demo-tools .demo-primary { background: #5d59ca; border-color: #5d59ca; color: white; }
+.demo-section { border-top: 1px solid #cdccd5; margin-top: 24px; padding-top: 20px; }
+.demo-section .demo-label { margin-bottom: 12px; }
+.demo-section label { display: flex; gap: 8px; align-items: center; margin-top: 14px; font-size: 12px; color: #5e5e6b; }
+.demo-section input[type=checkbox] { appearance: auto; accent-color: #5d59ca; }
+.demo-section select { background: #f5f5f7; color: #444450; border: 1px solid #c6c6d0; border-radius: 5px; font-size: 11px; padding: 3px; }
+#state-readout { display: block; font: 11px/1.9 var(--font-mono); color: #5e5e6b; white-space: pre-line; }
+#last-effect { margin-top: 10px; font-size: 11px; color: #6d6a98; line-height: 1.6; }
+.demo-help { margin-top: 24px; font-size: 11px; line-height: 1.9; color: #757581; }
+.demo-doc { display: inline-block; font-size: 11px; margin-top: 20px; color: #5d59ca; text-decoration: none; }
+.demo-tray { background: #f7f7fa; border: 1px solid #c6c6d0; border-radius: 10px; padding: 7px; margin-top: 10px; }
+.demo-tray button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 8px; }
+.demo-tray button:hover { background: #e5e3f6; }
+.demo-tray button span { font-size: 10px; color: #777; }
+.demo-tray-label { padding: 7px 8px 0; font-size: 11px; color: #777; }
+.demo-parked { text-align: center; color: #777582; font-size: 15px; }
+.demo-parked p { margin: 12px; }
+.demo-parked span { font-size: 12px; }
+@container (max-width: 400px) { .hud-footer .hints { gap: 4px; } }
+/* 原型窄窗补偿：当前源码的 315 DIP 页脚仍可能溢出；此处保留六组，收紧文字与边距。 */
+@container (max-width: 340px) { .hud-footer { padding: 0 10px; font-size: 9.5px; } .hud-footer .hints { gap: 3px; } .hud-footer .hints span { gap: 2px; } .hud-footer .kbd { min-width: 14px; padding: 0 3px; } }
+@media (max-width: 1000px) { .demo-layout { padding: 0 24px; gap: 32px; } }
+@media (max-width: 760px) { .demo-layout { display: block; padding: 0 16px; } .demo-tools { width: min(100%, 420px); margin: auto; } .demo-stage .desktop { width: min(calc(100vh * .4375), 100%); } }

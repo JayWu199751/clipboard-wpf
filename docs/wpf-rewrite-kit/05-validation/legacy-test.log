@@ -1,0 +1,178 @@
+
+> clipboard-tool-tauri@1.0.0 test
+> npm run test:view && npm run test:rust
+
+
+> clipboard-tool-tauri@1.0.0 test:view
+> node scripts/panel-view-unit.mjs
+
+  ok   空查询与全空白查询返回完整列表_顺序不变
+  ok   大小写不敏感匹配正文
+  ok   空格分词多词 AND_顺序无关
+  ok   备注与来源应用三字段都参与匹配
+  ok   图片条目无正文_可靠备注与来源命中
+  ok   结果保持原始顺序_不做匹配度排序
+  ok   无匹配返回空列表
+  ok   空查询不产生任何命中片段
+  ok   命中片段被标记且拼接后与原文完全一致
+  ok   多词分别高亮_已命中片段不被后续词二次切分
+  ok   无匹配时整段作为未命中返回
+  ok   clampIndex_空列表归零_越界与负值拉回有效范围
+  ok   moveIndex_首尾按方向不越界
+  ok   entryAt_越界与空列表返回 null_不抛异常
+  ok   穿透_矩形四边之外一律穿透
+  ok   穿透_直边带内不穿透_贴边点算窗口内
+  ok   穿透_四角弧内保留_弧外穿透
+  ok   穿透_只有单轴进角带时不判弧
+  ok   穿透_半径为零时只按矩形判定
+  ok   穿透_半径超过短边一半时按浏览器口径收敛
+  ok   相对时间_一分钟内为刚刚_未来时间戳同档
+  ok   相对时间_分钟档与小时档的阈值边界
+  ok   相对时间_跨天首日为昨天_边界含等于
+  ok   相对时间_两天起按天前取整
+  ok   按键码_字母与数字取本体_越界形态不映射
+  ok   按键码_F1到F24原样返回_F0与F25不映射
+  ok   按键码_功能键与方向键按表转换
+  ok   按键码_裸修饰键与未知码返回null
+  ok   accel归一_修饰键与别名收成keyId形
+  ok   combo平台化显示_中文键名_修饰缩写
+  ok   chipLabel把accel一步转成展示文案
+  ok   注册表九条_呼出键取真实值_描述全中文
+  ok   页脚chip由注册表同一份键值生成_一组一枚_顺序稳定
+  ok   页脚只列面板可见时用上的键_搜索住井里_呼出住托盘与覆盖层
+  ok   渲染层键位镜像与Rust表逐条一致_一条不多一条不少
+  ok   滚动条_内容不超高时不可见
+  ok   滚动条_thumb高度按可视比例_且不破下限
+  ok   滚动条_top随滚动进度线性到最大位
+  ok   主题按钮_亮暗系统循环_文案与图标展示偏好
+  ok   延迟删除_首次请求隐藏并启动计时_重复请求保持原窗口
+  ok   延迟删除_撤销取消计时并恢复_迟到截止事件无效
+  ok   延迟删除_截止后只提交一次且不再接受撤销
+  ok   延迟删除_提交失败恢复条目并提示_成功只清理判定状态
+  ok   主题同步_外部变更使未完成的读取失效
+  ok   主题同步_较新的读取先返回后迟到旧读不能覆盖
+  ok   主题同步_切换互斥_失败后保留偏好并允许重试
+  ok   延迟删除_条目各自计时_撤销一条不影响另一条提交
+  ok   主题同步_退出使读取失效_重新读取仍可接收
+  ok   主题同步_切换中外部变更保留互斥_结束后不回退偏好
+
+渲染层规则：49 例通过，0 例失败
+
+> clipboard-tool-tauri@1.0.0 test:rust
+> cargo test --manifest-path src-tauri/Cargo.toml
+
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.36s
+     Running unittests src\main.rs (src-tauri\target\debug\deps\clipboard_tool-c2993f89bccd920a.exe)
+
+running 109 tests
+test clipboard::真机探针::剪贴板里的截图必须读出PNG并判定为新复制 ... ignored, 需要真机剪贴板里正躺着一张截图
+test clipboard_probe::剪贴板通知探针 ... ignored, 真机探针：需要人工在窗口期内复制两次内容
+test diag::tests::日志超过上限才轮转_等于上限不动 ... ok
+test clipboard::tests::只有剪贴板被占用算不可信_其余错误都是确定的答案 ... ok
+test dib::tests::不支持的形状一律不接 ... ok
+test dib::tests::像素数据不足时不分配也不崩 ... ok
+test history::tests::togglePin_置顶刷新pinnedAt移到块首_取消置顶回到普通块最前 ... ok
+test history::tests::recordImage写盘失败_不插入条目 ... ok
+test history::tests::setNote_去首尾空白_截断200_空串等同删除 ... ok
+test history::tests::同文本去重_提升已有条目且属性不变_不新建 ... ok
+test history::tests::全部置顶时裁最旧置顶_经load触发 ... ok
+test history::tests::序列化只投影已知字段 ... ok
+test history::tests::matchImageHash用注入的hashImageFile识别历史里的图片 ... ok
+test history::tests::recordImage身份按PNGsha1_命中提升_不写新文件 ... ok
+test history::tests::remove图片条目_删内存加删文件_clear清全部 ... ok
+test history::tests::新内容插在置顶块之后_普通块最前 ... ok
+test history::tests::新文本条目插到最前 ... ok
+test dib::tests::BI_PNG像素区原样透传 ... ok
+test history::tests::置顶条目去重命中_刷新pinnedAt并移到置顶块最前 ... ok
+test history::tests::裁剪_置顶豁免_先裁普通块尾部 ... ok
+test dib::tests::二十四位BI_RGB按BGR读且行补齐被跳过 ... ok
+test dib::tests::位域掩码接在40字节头后_也能解 ... ok
+test dib::tests::pixpin截图形状_V5头32bpp带alpha掩码_能解出PNG ... ok
+test dib::tests::负高度是自上而下_行序不颠倒 ... ok
+test history::tests::载入归一化_缺省字段_丢文件图片被过滤 ... ok
+test history::tests::载入时置顶块按pinnedAt新旧_与载入顺序无关 ... ok
+test hotkeys::tests::同一组合键换种写法也算重复_不覆盖原动作也不碰插件 ... ok
+test hotkeys::tests::反复注册注销之后双向索引仍然一致 ... ok
+test hotkeys::tests::展示文案对单键与普通键原样保留 ... ok
+test hotkeys::tests::展示文案把修饰键收成缩写_空串退回默认键 ... ok
+test hotkeys::tests::插件拒绝时一分不记 ... ok
+test hotkeys::tests::无法解析的组合键不碰插件 ... ok
+test hotkeys::tests::注册成功后两个方向都查得到 ... ok
+test hotkeys::tests::注销按accel命中并清掉两个方向 ... ok
+test hotkeys::tests::注销未注册的键返回false且不碰插件 ... ok
+test panel_modes::tests::exit_input只退指定那个态_同态重复进入幂等拒绝 ... ok
+test panel_modes::tests::hide消费焦点快照_restoreFocus_false只清不还 ... ok
+test panel_modes::tests::只有上下方向键进入按住重复_其他动作保持一次触发 ... ok
+test panel_modes::tests::从捕获态进入搜索_先发capture_end再发进入事件 ... ok
+test panel_modes::tests::启动后只注册呼出快捷键_show后注册全部导航键 ... ok
+test panel_modes::tests::呼出时快照失败静默_进入输入态时快照失败上报并放弃 ... ok
+test panel_modes::tests::备注目标校验失败_不进入编辑 ... ok
+test panel_modes::tests::快捷键捕获_新键注册失败保持捕获态_取消恢复原键并发capture_end ... ok
+test panel_modes::tests::快捷键捕获_注销全部键_确认后换键退出捕获 ... ok
+test panel_modes::tests::捕获中呼出面板保持捕获态_导航键不误注册 ... ok
+test panel_modes::tests::搜索模式部分键让位_IME组合中全部暂停 ... ok
+test panel_modes::tests::搜索退出_恢复浏览态热键_归还焦点_发search_exit_快照保留 ... ok
+test panel_modes::tests::点击早于呼出不收起面板_晚于呼出才收起 ... ok
+test panel_modes::tests::浏览态Esc转发渲染层_搜索态Esc退出搜索 ... ok
+test panel_modes::tests::输入态的四条判定_进入与退出事件_是否聚焦_是否要求面板已显示 ... ok
+test panel_window::tests::停靠点在工作区右缘之外且贴顶 ... ok
+test panel_modes::tests::进入备注编辑先退出搜索_隐藏面板逐层退出并发对事件 ... ok
+test panel_window::tests::同DIP密度不同分辨率给出同尺寸 ... ok
+test panel_window::tests::呼出协议_不可见不重复显形_读不到也保留最终读数 ... ok
+test panel_window::tests::呼出协议_位置未生效只重设几何后回读 ... ok
+test panel_window::tests::呼出协议_意图屏外时按主屏自己的工作区与缩放重算 ... ok
+test panel_window::tests::呼出协议_最终判定与日志矩形共用一次回读 ... ok
+test panel_window::tests::呼出协议_缺主屏留分流读数并继续回读最终状态 ... ok
+test panel_window::tests::命中测试含边界且区分点与窗口的缩放 ... ok
+test panel_window::tests::居中按缩放换算后取整 ... ok
+test panel_window::tests::居中结果不随显示器原点丢失 ... ok
+test panel_window::tests::落位判定_不可见与没挪动与意图本身在屏外分成三种 ... ok
+test panel_window::tests::落位判定_可见相符才算落地_取整偏差不算失败 ... ok
+test panel_window::tests::落位判定_工作区按缩放换算_两个缩放给出不同结论 ... ok
+test panel_window::tests::迟到的旧几何效果作废_只有最新一次能落地 ... ok
+test panel_window::tests::面板尺寸高八分之七宽为高之半 ... ok
+test paste_chain::tests::写剪贴板失败_不落位不粘贴 ... ok
+test paste_chain::tests::图片条目_按文件路径写剪贴板 ... ok
+test paste_chain::tests::失败文案与面板事件同源 ... ok
+test paste_chain::tests::恢复焦点失败_文案按restore_不隐藏面板 ... ok
+test paste_chain::tests::成功链路_按五步顺序执行并隐藏面板 ... ok
+test paste_chain::tests::无焦点快照_中止注入且不隐藏面板 ... ok
+test paste_chain::tests::条目取不到_不写剪贴板也不碰焦点 ... ok
+test paste_chain::tests::注入失败_文案按paste_内容已在剪贴板 ... ok
+test paste_chain::tests::落位先于注入_粘贴失败列表仍反映这次复制 ... ok
+test poll_baseline::tests::sync_now把自己写入的内容认作基线 ... ok
+test poll_baseline::tests::图片写盘失败_基线不动并置重试_下一轮仍判定为新 ... ok
+test poll_baseline::tests::图片切回文字算新复制_并清空图片基线 ... ok
+test poll_baseline::tests::图片按内容哈希判定_同图不重复报_换图才报 ... ok
+test poll_baseline::tests::图片未变时文字基线仍跟上_但不清图片基线 ... ok
+test poll_baseline::tests::序列号短路_待重试与取不到序列号时不短路 ... ok
+test poll_baseline::tests::新文字算一次复制_同文字与空文字不算 ... ok
+test poll_baseline::tests::读不可信不得清空图片基线 ... ok
+test poll_baseline::tests::读不可信的一轮不推进序列号_下一轮同一内容仍算新复制 ... ok
+test settings::tests::主题三态标签唯一且非空 ... ok
+test settings::tests::兼容误写的snake_case旧档 ... ok
+test settings::tests::写出使用camel_case键名 ... ok
+test settings::tests::主题值非法回落跟随系统 ... ok
+test settings::tests::手缝分支也认主题键 ... ok
+test settings::tests::旧字段与未知键忽略_缺省回落默认值 ... ok
+test settings::tests::空快捷键归一为默认快捷键 ... ok
+test settings::tests::键值类型错乱时手缝吸收其余已知键 ... ok
+test startup::tests::开发通道只记意图_绝不注册任务 ... ok
+test startup::tests::当前构建通道为开发 ... ok
+test startup::tests::提权通道按意图注册_触发器位与意图一致 ... ok
+test startup::tests::提权通道注册失败时开关回退_取不到exe路径时不注册 ... ok
+test startup::tests::未提权通道保留意图并标记推迟_同样不注册任务 ... ok
+test startup::tests::通道文案各自唯一且非空 ... ok
+test tray::tests::一次左键点击只投一次呼出_右键与按下都不算 ... ok
+test tray::tests::主题子菜单恰好一项打勾_且能映射回当前偏好 ... ok
+test tray::tests::主题子菜单标题带当前态 ... ok
+test tray::tests::主题菜单id只认三条_其余一律不改设置 ... ok
+test tray::tests::任务栏明暗看_windows_模式键_缺键才退应用模式 ... ok
+test tray::tests::指针进图标算核配色的时机_不算呼出 ... ok
+test tray::tests::去重键_同档位不重设_跨档位或换主题才变 ... ok
+test tray::tests::菜单文案_快捷键走展示格式_开机启动带状态符号 ... ok
+test webview_theme::tests::三态各映射一枚常量_跟随系统映射成自动而非不设置 ... ok
+test tray::tests::缩放取最近档位_整数缩放恰好命中_同距取较小档 ... ok
+test settings::tests::往返序列化保持意图快捷键与主题 ... ok
+
+test result: ok. 107 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.02s

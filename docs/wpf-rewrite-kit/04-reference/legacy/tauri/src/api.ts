@@ -1,0 +1,62 @@
+// Tauri IPC 适配层：实现 window.clipboardAPI，渲染层只认这一个接口面。
+// invoke 参数名用 camelCase，与 Rust 命令的 serde rename 对齐。
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import type { ClipboardEntry, ThemePreference } from './types';
+
+type AnyCb = (...args: any[]) => void;
+
+// 与 preload.js 的 removeAllListeners 语义对齐：同一事件重复注册时先解绑旧的。
+const unlisteners = new Map<string, UnlistenFn[]>();
+const channelGen = new Map<string, number>();
+
+async function onEvent(channel: string, cb: AnyCb, map?: (payload: any) => any[]): Promise<void> {
+  const gen = (channelGen.get(channel) ?? 0) + 1;
+  channelGen.set(channel, gen);
+  for (const un of unlisteners.get(channel) ?? []) un();
+  unlisteners.set(channel, []);
+  const un = await listen<any>(channel, (event) => {
+    cb(...(map ? map(event.payload) : [event.payload]));
+  });
+  // 若期间已有更新的注册，此次监听作废
+  if (channelGen.get(channel) !== gen) {
+    un();
+    return;
+  }
+  if (!unlisteners.has(channel)) {
+    un();
+    return;
+  }
+  unlisteners.get(channel)!.push(un);
+}
+
+window.clipboardAPI = {
+  getHistory: () => invoke<ClipboardEntry[]>('clipboard_get'),
+  getTheme: () => invoke<ThemePreference>('theme_get'),
+  setTheme: (theme) => invoke<void>('theme_set', { theme }),
+  onThemeChanged: (cb) => onEvent('theme:changed', cb),
+  onUpdated: (cb) => onEvent('clipboard:updated', cb),
+  // 面板显示期间由主进程全局拦截的按键动作：up / down / enter / escape / delete / pin /
+  // search-enter / search-exit / note-edit-enter / note-edit-exit
+  onPanelKey: (cb) => onEvent('panel:key', cb, (p) => [p.action, p.noteEntryId ?? null]),
+  onPanelShown: (cb) => onEvent('panel:shown', cb),
+  onFocusError: (cb) => onEvent('panel:focus-error', cb),
+  // 返回结果契约 { ok, message }：键盘 Enter / 双击共用（卡片右上角的「复制」按钮 2026-09-11 已删）
+  copy: (id) => invoke('clipboard_copy', { id }),
+  remove: (id) => invoke('clipboard_remove', { id }),
+  pin: (id) => invoke('clipboard_pin', { id }),
+  setNote: (id, note) => invoke('note_set', { id, note }),
+  endNoteEdit: () => invoke('note_end_edit'),
+
+  // 更换快捷键
+  onShortcutCaptureStart: (cb) => onEvent('shortcut:capture-start', cb),
+  onShortcutCaptureEnd: (cb) => onEvent('shortcut:capture-end', cb),
+  tryShortcut: (accel) => invoke('shortcut_try', { accel }),
+  cancelShortcut: () => invoke('shortcut_cancel'),
+  hide: () => invoke('window_hide'),
+  setIgnoreMouse: (ignore, forward) => invoke('window_set_ignore_mouse', { ignore, forward }),
+  // 搜索：进入搜索模式（按空格由主进程直接触发，点击常驻搜索框走这里）
+  activateSearch: () => invoke('search_activate'),
+  // 搜索：中文输入法组合状态同步（组合期间主进程暂停面板导航键）
+  setSearchComposing: (composing) => invoke('search_set_composing', { composing }),
+};

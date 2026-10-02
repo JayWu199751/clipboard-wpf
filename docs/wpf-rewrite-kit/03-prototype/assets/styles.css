@@ -1,0 +1,465 @@
+/* ============================================================
+   ClipboardTool — ClipFlow HUD 渲染层样式
+   组件样式迁移自 clipboard-app/css/style.css §2–§7（选择器语义与数值不改），
+   两处按「目标形态 · Tauri 2 壳层」与已知坑④调整：
+   - 源 UI 的 body.desktop 假桌面（radial glow）换成透明窗口壳层：
+     .desktop 全透 + 圆角裁切，.app-window 承担 400×800 网格与 hairline；
+     原生 shadow 不开（tauri.conf shadow:false），圆角/描边以 CSS 为准。
+   - closed-hint 演示件删除（重开由全局快捷键接管）。
+   - 追加原应用既有功能的皮肤：快捷键捕获覆盖层、置顶标记、命中高亮、
+     页脚错误行、图片真实缩略图。全部走 token，零组件内色值。
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   0. 壳层（透明窗口）——原应用机制保留：
+   圆角单一真源 = .desktop 的 border-radius（穿透判定读它），
+   分数缩放下 1 设备像素内边距防描边被窗口物理边缘裁淡。
+   ------------------------------------------------------------ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  background: transparent;
+  overflow: hidden;
+}
+
+#root { height: 100%; }
+
+.desktop {
+  position: relative;
+  display: grid;
+  place-items: stretch;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  /* 四边一律留 1 CSS px（不是 1 设备像素）：真机 175% 实证，设备像素级的「恰好」
+     不可信——Chromium 把 1px 边框在分数缩放下取整成 1 设备列，左缘向内取整保得住，
+     右缘向外取整就整列滚出 surface（右描边消失的真因）。留足 1 CSS px 后，
+     无论取整方向如何，描边都完整落在 surface 内；1 CSS px 的透明缝肉眼不可辨。
+     不按缩放档位分治（原应用「窗口框架」契约 2，真机踩过）。 */
+  padding: 1px;
+  background: transparent;
+  border-radius: var(--radius-window);
+  overflow: hidden;
+}
+
+/* HUD 窗口网格：搜索头 60 / 列表 1fr / 页脚 30。
+   minmax(0,1fr) 防 nowrap 长内容把轨道撑破固定窗口（迁移提示词坑②）。 */
+.app-window {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--search-h) minmax(0, 1fr) var(--footer-h);
+  background: var(--bg-app);
+  border-radius: calc(var(--radius-window) - 2px);
+  /* 描边用真边框而非 inset box-shadow：阴影矩形被逐边独立取整，四边宽度不可控。
+     2026-09-08 返修 4：由半透明 hairline 改为 --window-ring 中灰实线，亮暗同值。
+     弧比直边显窄是混叠错觉（直边取整成实心设备列，弧是无 AA 翼的细阶梯）。宽度反复两轮：
+     返修 7 加粗 2px、返修 8 回 1px——都在圆角 14 下拍的板；圆角加倍到 28 后弧段更显眼，
+     返修 9 用户复看拍板回 2px。别再试「border-width 归一到设备像素」（如 calc(2px/var(--dpr))
+     凑 2 设备列）：Chromium 把 border-width 截断成整数 CSS px，1.143/1.333/1.6px 全部归一为
+     1px，死路；角部 mask 局部加粗原型验成未选。测量与对比页留档 prototype/ring-corner-mask。
+     圆角 2026-09-11 再增到 36px：弧段比 28px 时更长，这条「全周 2px」的取舍照旧；真机若再报
+     「圆角处更细」，先量弧的 AA 翼再说——动 border-width 会连直边一起加粗，返修 7/8 已翻过两次。 */
+  border: 2px solid var(--window-ring);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  /* 源 UI 的 window-in 入场动画不迁移：真实应用的显隐由原生窗口承担，
+     CSS 入场只在启动离屏热身期空放一次，且 scale 变换会把 hairline 描边
+     与滚动几何按帧缩放（window-ring / navigation 两条回归的测量都会被污染）。 */
+}
+
+/* ------------------------------------------------------------
+   1. Reset & base（源 §2，桌面背景除外）
+   ------------------------------------------------------------ */
+body {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input  { font: inherit; color: inherit; background: none; border: 0; outline: none; }
+ul { list-style: none; }
+p { font-weight: inherit; font-size: inherit; }
+
+::selection { background: var(--selection-bg); color: var(--selection-text); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+*::-webkit-scrollbar { width: 9px; }
+*::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 99px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover { background-color: var(--scroll-thumb-hover); }
+*::-webkit-scrollbar-track { background: transparent; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: var(--radius-sm); }
+.cards:focus-visible { outline-offset: -2px; }
+
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* ------------------------------------------------------------
+   2. Search header（源 §3）
+   ------------------------------------------------------------ */
+.hud-search {
+  display: flex; align-items: center;
+  /* 左右 16→12px（用户 2026-09-08：窄窗下减少列表与搜索框到边框的间距） */
+  padding: 0 var(--space-3);
+  background: var(--bg-app);
+  border-bottom: 1px solid var(--border-subtle);
+  user-select: none;
+}
+
+/* Compact search well — the focus ring lives here (contained, never
+   overflows the window), the bare input suppresses its own outline. */
+.hud-search__well {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 36px; padding: 0 var(--space-2) 0 var(--space-3);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  /* 胶囊（2026-09-11 用户要求「左右两侧看起来像是个半圆」）：height 36px 下浏览器把半径
+     钳到 18px = 高度一半，两端各成一个正半圆。写 --radius-pill 而非 18px 死值——高度是这条
+     算式的输入，写死就多一份会漂移的复制；999px 被钳位后的结果与「恰好 h/2」逐像素相同。 */
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-inset);
+  transition: border-color var(--dur-base) var(--ease-out), box-shadow var(--dur-base) var(--ease-out);
+  cursor: text;
+}
+.hud-search__well:focus-within {
+  border-color: var(--border-selected);
+  box-shadow: 0 0 0 3px var(--ring-soft), var(--shadow-inset);
+  cursor: auto;
+}
+.hud-search__icon { color: var(--text-tertiary); flex: none; }
+.hud-search__input {
+  flex: 1; min-width: 0; height: 100%;
+  font-size: 13.5px; font-weight: 500; letter-spacing: -0.1px;
+}
+.hud-search__input:focus-visible { outline: none; }
+.hud-search__input::placeholder { color: var(--text-tertiary); font-weight: 400; }
+.hud-search__clear {
+  display: grid; place-items: center; width: 20px; height: 20px; flex: none;
+  color: var(--text-tertiary); border-radius: 50%;
+}
+.hud-search__clear:hover { background: var(--bg-active); color: var(--text-primary); }
+.hud-search__kbd { flex: none; }
+.hud-search__theme {
+  display: grid; place-items: center; flex: none;
+  width: calc(var(--space-3) * 2); height: calc(var(--space-3) * 2);
+  color: var(--text-secondary); border-radius: var(--radius-pill);
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.hud-search__theme:hover:not(:disabled) { background: var(--bg-active); color: var(--text-primary); }
+.hud-search__theme:disabled { color: var(--text-disabled); cursor: default; }
+
+/* ------------------------------------------------------------
+   3. Card list（源 §4）
+   ------------------------------------------------------------ */
+.cards-wrap { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--bg-app); }
+
+.cards {
+  flex: 1; overflow-y: auto; min-height: 0;
+  /* 左右与搜索头同步收到 12px；上下留白不动（顶部 12px 与 scroll-padding 同源） */
+  padding: var(--space-3) var(--space-3) var(--space-4);
+  scroll-padding-top: var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-2);
+  /* 真机（WebView2 经典滚动条）里原生条占布局宽度，卡片右缘到边框会被垫出
+     「16px 留白 + 条宽」，与左缘的 16px 不对称（headless 是 overlay 条，测不出来）。
+     隐藏原生条，滚动位置由 .hud-scrollbar 自绘细条承担——左右留白回到同源对称。 */
+  scrollbar-width: none;
+}
+.cards::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* 自绘滚动条：4px 细条住在右侧 16px 留白内（right 5px + 宽 4px < 16px），
+   不压卡片；thumb 几何判定在 panelView.scrollbarThumb，到点自动隐藏。 */
+.hud-scrollbar {
+  position: absolute; top: 0; right: 5px; bottom: 0;
+  width: 4px; pointer-events: none;
+  opacity: 0; transition: opacity var(--dur-base) var(--ease-out);
+}
+.hud-scrollbar.is-visible { opacity: 1; }
+.hud-scrollbar-thumb {
+  position: absolute; left: 0; right: 0; top: 0;
+  border-radius: var(--radius-pill);
+  background: var(--scroll-thumb);
+}
+
+.card {
+  position: relative;
+  min-width: 0; /* flex-item: let nowrap content ellipsize instead of stretching the card past the window */
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card); /* 12px（2026-09-11 用户指定）；--radius-md 归空态图标与覆盖层卡片，不动 */
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0; /* 列表空间不足时禁止压缩卡片，图片缩略图才不会溢出卡片边框 */
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.card:hover { background: var(--bg-card); border-color: var(--border-strong); }
+.card.is-selected {
+  background: var(--bg-selected);
+  border-color: var(--border-selected);
+}
+.card.is-copied { animation: copied-flash 500ms var(--ease-out); }
+@keyframes copied-flash {
+  0% { background: var(--success-soft); border-color: var(--success); }
+  100% { background: var(--bg-selected); border-color: var(--border-selected); }
+}
+
+/* meta 行（类型 · 来源 · 时间 · 图钉 · 备注）住在内容**下方**（2026-09-11 用户要求）：
+   间距一律取 margin-top，内容块自己不留底边距——图片卡「缩略图 → 文件名」之间仍靠
+   .card__thumb 的 margin-bottom 维持 12px。 */
+.card__meta {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary);
+  margin-top: var(--space-2);
+  /* 行高是显式的**高度契约**：内联备注框（.note-input）与这一行等高，按下 B 才不推挤卡片。
+     不写死行高时行盒由内容决定（10.5 × 1.45 ≈ 15.2），22px 的输入框一进来就把行撑到 22px，
+     卡片高度 89.5 → 96.28、下方每条跟着跳 6.8px（2026-09-11 用户报「按下 B 复制项大小会改变」）。
+     16px 比自然行盒高 0.8px，代价是每张卡恒定高 0.8px，换来编辑态零位移。 */
+  line-height: 16px;
+  white-space: nowrap; overflow: hidden;
+}
+/* 类型标识（仅图标的 chip）2026-09-11 随用户要求删除：文字/图片由内容形态本身区分，
+   meta 行现在直接从来源应用起头，故 .card__type 一族与 --type-text/--type-image 一并退役。
+   当时刻意保留的 .card[data-type] 属性（文字卡让开复制胶囊的规则在读它）随后也失去唯一
+   读者，同日一并删除——这条注释是那段先后关系的落点。 */
+.card__meta .sep { color: var(--text-disabled); }
+.card__meta .src { color: var(--text-secondary); }
+/* 置顶标记（原应用 Z 键的可见态，HUD 里只留图标） */
+.card__pin { display: inline-flex; align-items: center; color: var(--accent-text); flex: none; }
+.card__pin svg { width: 12px; height: 12px; }
+
+.card__body {
+  font-size: 13px; line-height: 1.55; color: var(--text-primary);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; white-space: pre-wrap; word-break: break-word;
+}
+
+/* Image card — 真实图片用 <img>，棋盘格底保留（源 §4 的渐变占位换成 dataUrl）。
+   缩略图后面那块渐变是 <img> letterbox 区露出的底：源 UI 靠行内 --thumb 逐卡改色，
+   HUD 换真图后已无赋值点，写回固定底即可。 */
+.card__thumb {
+  position: relative;
+  height: 150px; margin-bottom: var(--space-3); /* 只隔开下面的文件名；meta 行的间距归它自己的 margin-top */
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background:
+    repeating-conic-gradient(var(--checker) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px,
+    linear-gradient(135deg, #2A2A40, #1A1A24);
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.card__thumb img {
+  width: 100%; height: 100%;
+  object-fit: contain; display: block;
+}
+.card__name {
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Note (备注) — inline in the meta row after the time; one line, ellipsis, hidden when empty */
+.card__meta .card__note {
+  flex: 1; min-width: 0;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  color: var(--text-tertiary);
+}
+
+/* 内联备注框 = meta 行本身那么高（16px），字号取与 meta 文本同号（10.5px）。
+   原为 22px / 11.5px：比 meta 行高出 6.8px，一按 B 就把卡片撑高（见 .card__meta 的注释）。
+   行高必须显式写回 14px（= 16 − 上下各 1px 边框）——不写会继承 meta 行的 16px，行盒比内容盒
+   还高，文字被上下裁掉。 */
+.note-input {
+  flex: 1; min-width: 0;
+  height: 16px; padding: 0 var(--space-2);
+  font-family: var(--font-ui); font-size: 10.5px; line-height: 14px; color: var(--text-primary);
+  background: var(--bg-app);
+  border: 1px solid var(--border-selected);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 3px var(--ring-soft);
+}
+.note-input::placeholder { color: var(--text-tertiary); }
+/* 焦点环只留 .note-input 自己那一圈：全局 :focus-visible 的 2px --accent outline 会叠成
+   两圈蓝环。与搜索井同一口径——环住在控件上，裸输入框抑制自己的 outline（返修：用户报
+   「备注框蓝色边框超出界面」，2026-09-08）。 */
+.note-input:focus-visible { outline: none; }
+/* 编辑态：meta 的单行裁切由 hidden 换成 clip 并放行 4px——hidden 把 3px 环的上下两边拦腰
+   切掉，只剩左右两截「括号」伸出输入框（用户看到的「蓝色边框超出界面」正是这个断环，
+   2026-09-08 返修）。4px > 3px 环宽，留 1px 抗锯齿余量；输入框左右各 3px 的环都落在
+   卡片 16px 留白内，零布局位移。
+   改版前这里还留着 padding-right: 76px 给右上角的复制胶囊让位；meta 行搬到内容下方后，
+   胶囊在最上一行的带内（卡片顶 12px 起、24px 高），输入框在最下一行，两者永不相交，
+   该让位随之删除——留着只是白丢一截输入宽度。（那颗胶囊本身也已在同日删除。） */
+.card:has(.note-input) .card__meta {
+  overflow: clip;
+  overflow-clip-margin: 4px;
+}
+
+/* 卡片右上角曾是「复制」胶囊（.card__copy 一族，外加文字卡为它让出 68px 的
+   .card[data-type="text"] 让位规则）——2026-09-11 随用户要求整套删除（「hover 与选中都不再
+   显示」）。鼠标复制只剩双击卡片一条路（onDoubleClick，未动）；文字卡在 hover/选中时不再
+   收窄右端，长文本占满整行。这一族里那句写死的 rgba(123,119,224,.25) 也随之下线。文件里
+   另有一处写死色值未动——.card__thumb 的固定渐变底（#2A2A40 / #1A1A24），详见
+   docs/design-system.md。历史：胶囊原住右上角、hover/选中浮现，2026-09-11 卡片
+   改版时为它加过 68px 让位（探针实测不让位 383 / 让位 318 / 胶囊左缘 333）。 */
+
+/* 命中高亮（原应用搜索能力的皮肤，色值全走 token） */
+.card mark {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  border-radius: 2px;
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--space-2); padding: var(--space-6); text-align: center;
+}
+.empty-state__icon {
+  display: grid; place-items: center; width: 42px; height: 42px;
+  color: var(--text-tertiary);
+  background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+.empty-state__title { font-size: 14px; font-weight: 600; }
+.empty-state__hint { font-size: 12px; color: var(--text-tertiary); }
+
+/* ------------------------------------------------------------
+   4. Hint footer（源 §5）
+   ------------------------------------------------------------ */
+.hud-footer {
+  display: flex; align-items: center;
+  padding: 0 var(--space-4);
+  background: var(--bg-app);
+  border-top: 1px solid var(--border-subtle);
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-tertiary);
+  user-select: none;
+  min-width: 0; overflow: hidden; white-space: nowrap;
+}
+.hud-footer .hints { margin-left: auto; display: flex; align-items: center; gap: var(--space-2); } /* 返修 6：真机字体比 headless 宽，12px 组距会把页脚撑溢出，收进 8px */
+.hud-footer .hints span { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+/* 溢出时宁可裁掉也不压扁：chip 与计数被 flex-shrink 挤瘦就是「间距不均匀」的来路 */
+.hud-footer #status-count { flex: none; }
+.hud-footer .kbd { height: 16px; font-size: 9.5px; border-bottom-width: 1px; }
+/* 窄窗兜底：面板尺寸改为「高=屏幕 2/3、宽=高一半」后，小屏上窗口宽度可能低于
+   六组提示的自然宽度（~407px）。逐级收紧间距与 chip，而不是裁掉右边的组。 */
+@media (max-width: 400px) {
+  .hud-footer .hints { gap: var(--space-1); }
+}
+@media (max-width: 340px) {
+  .hud-footer .hints span { gap: 2px; }
+  .hud-footer .kbd { min-width: 14px; padding: 0 3px; }
+}
+/* 焦点恢复失败的底栏提示（原应用 panel:focus-error 的皮肤） */
+.hud-footer .footer-error {
+  margin-left: var(--space-3);
+  color: var(--error);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+
+/* ------------------------------------------------------------
+   5. Toasts（源 §6，closed-hint 演示件按迁移提示词删除）
+   ------------------------------------------------------------ */
+.toast-stack {
+  position: fixed; left: 50%; bottom: 48px; z-index: 200;
+  transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-2);
+  pointer-events: none;
+}
+
+.toast {
+  display: flex; align-items: center; gap: var(--space-2);
+  height: 34px; padding: 0 var(--space-3);
+  background: var(--pop-bg);
+  border: 1px solid var(--pop-border);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-toast);
+  font-size: 12.5px; color: var(--text-primary);
+  animation: toast-in var(--dur-slow) var(--ease-out) both;
+  pointer-events: auto;
+}
+.toast.is-leaving { animation: toast-out var(--dur-base) var(--ease-in) both; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateY(6px) scale(0.97); } }
+.toast__icon { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; flex: none; color: var(--success); }
+.toast__icon--error { color: var(--error); }
+.toast__msg { white-space: nowrap; }
+.toast__msg .dim { color: var(--text-tertiary); }
+.toast__action {
+  font-size: 11.5px; font-weight: 600; color: var(--accent-text);
+  padding: 3px 10px; border-radius: var(--radius-pill);
+  transition: background var(--dur-fast);
+}
+.toast__action:hover { background: var(--accent-soft); }
+
+/* ------------------------------------------------------------
+   6. 快捷键捕获覆盖层（原应用功能，HUD 皮肤重绘，色值全走 token）
+   ------------------------------------------------------------ */
+.shortcut-overlay {
+  position: absolute; inset: 0; z-index: 300;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg-app) 86%, transparent);
+}
+.shortcut-card {
+  width: 320px;
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-3);
+  padding: var(--space-5);
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-toast);
+  text-align: center;
+}
+.shortcut-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.shortcut-current, .shortcut-hint { font-size: 12px; color: var(--text-secondary); }
+.shortcut-hint { font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+.shortcut-status { font-size: 12px; font-weight: 600; }
+.shortcut-status.ok { color: var(--success); }
+.shortcut-status.err { color: var(--error); }
+.shortcut-cancel {
+  margin-top: var(--space-1);
+  height: 28px; padding: 0 var(--space-3);
+  font-size: 12px; color: var(--text-secondary);
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  transition: color var(--dur-fast), border-color var(--dur-fast);
+}
+.shortcut-cancel:hover { color: var(--text-primary); border-color: var(--border-selected); }
+
+/* ------------------------------------------------------------
+   7. Reduced motion（源 §7）
+   ------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClipboardTool · WPF 重写参考原型</title>
+  <link rel="icon" href="assets/sample-image.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/theme.css">
+  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/prototype.css">
+  <script src="assets/prototype.js" defer></script>
+</head>
+<body>
+  <!-- 问题：原生 WPF 重写如何保留当前 HUD？按用户要求还原，不生成改版候选；系统效果仅模拟。 -->
+  <div id="icon-sprite" hidden><svg xmlns="http://www.w3.org/2000/svg"><symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5" /><path d="m21 21-4.35-4.35" /></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" /></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.9 13.1A9 9 0 0 1 10.9 3.1a9 9 0 1 0 10 10Z" /></symbol>
+<symbol id="i-monitor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M12 17v4m-4 0h8" /></symbol>
+<symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m20 6.5-11 11-5-5" /></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2.8 8.6 4.6-8.6 4.6-8.6-4.6z" /><path d="m3.4 12.4 8.6 4.6 8.6-4.6" /><path d="m3.4 16.9 8.6 4.6 8.6-4.6" /></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5" /><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" /></symbol></svg></div>
+  <div class="demo-layout">
+    <section class="demo-stage" aria-label="当前 HUD 原型">
+      <div class="demo-caption"><span>CLIPBOARD TOOL</span><span>当前 HUD · 还原原型</span></div>
+      <div id="panel" class="desktop">
+        <div class="app-window" lang="zh-CN" role="application" aria-label="剪贴板">
+          <header class="hud-search">
+            <div class="hud-search__well" id="search-well">
+              <svg class="hud-search__icon" width="15" height="15" aria-hidden="true"><use href="#i-search"></use></svg>
+              <input id="search-input" class="hud-search__input" placeholder="搜索剪贴板…" aria-label="搜索剪贴板" autocomplete="off" spellcheck="false" readonly>
+              <button id="search-clear" class="hud-search__clear" aria-label="清除搜索" hidden><svg width="12" height="12" aria-hidden="true"><use href="#i-x"></use></svg></button>
+              <button id="theme-toggle" class="hud-search__theme" aria-label="切换主题"><svg width="15" height="15" aria-hidden="true"><use href="#i-monitor"></use></svg></button>
+              <kbd id="search-chip" class="kbd hud-search__kbd" aria-hidden="true"></kbd>
+            </div>
+          </header>
+          <main class="cards-wrap">
+            <ul id="cards" class="cards" role="listbox" aria-label="剪贴板条目"></ul>
+            <div id="empty-state" class="empty-state" role="status" hidden></div>
+            <div class="hud-scrollbar" aria-hidden="true"><span class="hud-scrollbar-thumb"></span></div>
+          </main>
+          <footer id="footer" class="hud-footer" aria-label="快捷键提示"></footer>
+          <div id="capture" class="shortcut-overlay" role="dialog" aria-modal="true" aria-label="更换快捷键" hidden>
+            <div class="shortcut-card">
+              <h2 class="shortcut-title">更换快捷键</h2>
+              <p class="shortcut-current">当前：<span id="capture-current" class="kbd"></span></p>
+              <p class="shortcut-hint">请按下新的快捷键组合，例如 Ctrl + Shift + V</p>
+              <p id="capture-status" class="shortcut-status" hidden></p>
+              <button id="capture-cancel" class="shortcut-cancel">取消（Esc）</button>
+            </div>
+          </div>
+        </div>
+        <div id="toasts" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
+      </div>
+      <div id="parked-hint" class="demo-parked" hidden><svg width="28" height="28"><use href="#i-layers"></use></svg><p>面板已停靠</p><span>使用右侧「呼出」再次查看</span></div>
+    </section>
+    <aside class="demo-tools" aria-label="原型演示工具">
+      <div class="demo-eyebrow">C# + WPF / 参考</div>
+      <h1>保留熟悉的<br>剪贴板面板。</h1>
+      <p class="demo-intro">原有布局、样式与键位。这里可体验交互，系统动作以模拟方式展示。</p>
+      <div class="demo-controls">
+        <button id="summon" class="demo-primary">呼出 / 停靠</button>
+        <button id="tray-open">模拟托盘菜单</button>
+      </div>
+      <div id="tray" class="demo-tray" hidden aria-label="模拟托盘菜单">
+        <button data-action="show">显示剪贴板面板</button>
+        <button data-action="capture">更换快捷键 <span id="tray-shortcut"></span></button>
+        <button data-action="startup" id="tray-startup"></button>
+        <div class="demo-tray-label" id="tray-theme-label"></div>
+        <button data-theme-choice="light">亮色</button>
+        <button data-theme-choice="dark">暗色</button>
+        <button data-theme-choice="system">跟随系统</button>
+        <button data-action="clear">清空历史</button>
+        <button data-action="exit">退出（模拟）</button>
+      </div>
+      <div class="demo-section">
+        <div class="demo-label">场景</div>
+        <div class="demo-controls"><button id="sample-data">恢复示例历史</button><button id="empty-data">空历史</button></div>
+        <label><input id="paste-failure" type="checkbox"> 模拟粘贴失败</label>
+        <label><input id="delete-failure" type="checkbox"> 模拟删除提交失败</label>
+        <label>模拟系统应用主题 <select id="system-theme"><option value="auto">真实系统</option><option value="light">亮色</option><option value="dark">暗色</option></select></label>
+      </div>
+      <div class="demo-section">
+        <div class="demo-label">当前状态 · 演示读数</div>
+        <output id="state-readout"></output>
+        <p id="last-effect" role="status">尚未执行系统动作</p>
+      </div>
+      <div class="demo-help">↑↓ 选择 · Enter 模拟粘贴<br>空格 搜索 · Z 置顶 · B 备注<br>Del 删除（6 秒撤销）· Esc 退出<br><br>点击卡片仅选中，双击模拟粘贴。<br>点击面板外停靠；计时继续。</div>
+      <a class="demo-doc" href="../README.md">资料包阅读入口 →</a>
+    </aside>
+  </div>
+</body>
+</html>

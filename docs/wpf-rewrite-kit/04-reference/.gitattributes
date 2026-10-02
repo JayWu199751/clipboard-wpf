@@ -1,0 +1,2 @@
+# 只读快照按原始字节存储，避免 autocrlf 在检出时破坏 SHA-256。
+legacy/** binary

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="300" viewBox="0 0 620 300">
+  <rect width="620" height="300" rx="12" fill="#f0f0f3"/>
+  <rect x="20" y="20" width="580" height="260" rx="10" fill="#fff"/>
+  <rect x="40" y="42" width="26" height="26" rx="7" fill="#5d59ca"/>
+  <path d="M46 57h14m-7-7v14" stroke="#fff" stroke-width="2"/>
+  <text x="80" y="60" font-family="Segoe UI,sans-serif" font-size="18" fill="#25252e">ClipboardTool</text>
+  <text x="40" y="104" font-family="Segoe UI,sans-serif" font-size="12" fill="#777784">本地示例截图 · 仅用于缩略图演示</text>
+  <rect x="40" y="123" width="248" height="132" rx="9" fill="#f5f4fb"/>
+  <rect x="310" y="123" width="266" height="132" rx="9" fill="#f6f6f8"/>
+  <path d="M62 219l34-28 31 11 41-43 40 25 58-36" fill="none" stroke="#7771ce" stroke-width="3"/>
+  <circle cx="266" cy="148" r="4" fill="#7771ce"/>
+  <rect x="330" y="143" width="163" height="8" rx="4" fill="#bfbfc9"/>
+  <rect x="330" y="165" width="223" height="6" rx="3" fill="#dddde5"/>
+  <rect x="330" y="184" width="184" height="6" rx="3" fill="#dddde5"/>
+  <rect x="330" y="215" width="64" height="22" rx="11" fill="#e5e3f6"/>
+  <text x="342" y="230" font-family="Segoe UI,sans-serif" font-size="10" fill="#5d59ca">原生 WPF</text>
+</svg>
