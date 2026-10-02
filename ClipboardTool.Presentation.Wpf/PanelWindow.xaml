@@ -14,12 +14,19 @@
         FontFamily="{StaticResource Font.Sans}">
 
     <Window.Resources>
-        <!-- 卡片容器：CornerRadius12、1 DIP 细线（Border.Subtle）、上下12/左右16；hover 仅细边加深 -->
+        <!-- 卡片容器：CornerRadius12、1 DIP 细线（Border.Subtle）、上下12/左右16；hover 仅细边加深。
+             Padding/Margin 显式清零 + Stretch：ListBoxItem 默认 Padding=1 会让卡片内缩、
+             右细线在 175% DPI 的亚像素相位下被背景吞掉，左右边距不再对称 -->
         <Style x:Key="CardContainerStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="Card"
+                                MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
                                 Background="{DynamicResource Brush.Card}"
                                 BorderBrush="{DynamicResource Brush.Border.Subtle}"
                                 BorderThickness="1"
@@ -150,7 +157,10 @@
                     </Border>
                 </Grid>
 
-                <!-- 列表：上左右 12、下 16，卡片间 8；虚拟化 + 回收；原生滚动条隐藏（自绘指示条归后续工单） -->
+                <!-- 列表：上左右 12、下 16，卡片间 8；虚拟化 + 回收。
+                     原生滚动条隐藏且不占位（对齐原型 scrollbar-width:none）：Hidden 仅不绘制、
+                     仍按滚动条期望宽度压缩视口，导致卡片右缘被裁、右细线消失，故将宽度钳为 0；
+                     自绘滚动指示条归后续工单 -->
                 <ListBox Grid.Row="1"
                          Margin="12,12,12,16"
                          ItemsSource="{Binding Items}"
@@ -164,6 +174,15 @@
                          VirtualizingPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
                          SelectionMode="Single">
+                    <ListBox.Resources>
+                        <!-- 隐藏滚动条且不占布局（Collapsed 而非 Hidden：后者仍保留轨道宽度，
+                             会把视口压窄、与卡片左右边距不对称）；滚动仍由 ScrollViewer 处理 -->
+                        <Style TargetType="ScrollBar">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Setter Property="Width" Value="0" />
+                            <Setter Property="MinWidth" Value="0" />
+                        </Style>
+                    </ListBox.Resources>
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <VirtualizingStackPanel />
