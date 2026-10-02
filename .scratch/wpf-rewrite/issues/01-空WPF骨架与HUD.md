@@ -1,4 +1,6 @@
 Status: ready-for-agent
+Execution: claimed
+Type: task
 
 # T01：空 WPF 骨架 + 可复用 HUD + 临时托盘/呼出 + 基线采样
 

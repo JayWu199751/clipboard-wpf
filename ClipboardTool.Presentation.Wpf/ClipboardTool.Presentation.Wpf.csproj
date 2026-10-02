@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ClipboardTool.Presentation.Wpf</RootNamespace>
+    <AssemblyName>ClipboardTool</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClipboardTool.Application\ClipboardTool.Application.csproj" />
+    <ProjectReference Include="..\ClipboardTool.Domain\ClipboardTool.Domain.csproj" />
+    <ProjectReference Include="..\ClipboardTool.Infrastructure.Windows\ClipboardTool.Infrastructure.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

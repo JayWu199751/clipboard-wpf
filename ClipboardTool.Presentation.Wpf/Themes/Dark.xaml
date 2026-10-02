@@ -1,0 +1,31 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 暗 token：逐值对齐 03-prototype/assets/theme.css 的 :root -->
+
+    <SolidColorBrush x:Key="Brush.App" Color="#0B0B0E" />
+    <SolidColorBrush x:Key="Brush.Card" Color="#141419" />
+    <SolidColorBrush x:Key="Brush.Input" Color="#15151A" />
+    <SolidColorBrush x:Key="Brush.Bg.Active" Color="#17FFFFFF" />
+
+    <SolidColorBrush x:Key="Brush.Border.Subtle" Color="#0FFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="Brush.Border.Selected" Color="#737B77E0" />
+    <SolidColorBrush x:Key="Brush.Selection.Background" Color="#217B77E0" />
+
+    <SolidColorBrush x:Key="Brush.Window.Ring" Color="#757575" />
+
+    <SolidColorBrush x:Key="Brush.Text.Primary" Color="#F2F2F5" />
+    <SolidColorBrush x:Key="Brush.Text.Secondary" Color="#A0A0AC" />
+    <SolidColorBrush x:Key="Brush.Text.Tertiary" Color="#7E7E8A" />
+    <SolidColorBrush x:Key="Brush.Text.Disabled" Color="#55555F" />
+
+    <SolidColorBrush x:Key="Brush.Accent" Color="#7B77E0" />
+    <SolidColorBrush x:Key="Brush.Accent.Text" Color="#A7A4F0" />
+
+    <SolidColorBrush x:Key="Brush.Success" Color="#57C08A" />
+    <SolidColorBrush x:Key="Brush.Error" Color="#E05A52" />
+
+    <SolidColorBrush x:Key="Brush.Ring.Soft" Color="#1F7B77E0" />
+
+</ResourceDictionary>
