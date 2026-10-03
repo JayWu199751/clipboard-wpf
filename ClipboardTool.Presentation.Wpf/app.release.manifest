@@ -2,12 +2,13 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="ClipboardTool.Presentation.Wpf"/>
 
-  <!-- 开发/测试构建：不提权（F35）。发布构建用 app.release.manifest（csproj 按配置选择）。
-       提权正式入口=计划任务静默通道；直接运行发布产物才走 UAC。 -->
+  <!-- 发布构建：requireAdministrator——直接运行产物即 UAC 提权（F35）。
+       日常免 UAC 入口=计划任务 ClipboardToolElevated（最高权限，静默拉起）；
+       开发/测试构建用 app.manifest（asInvoker，csproj 按配置选择）。 -->
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
     <security>
       <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
-        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
       </requestedPrivileges>
     </security>
   </trustInfo>
