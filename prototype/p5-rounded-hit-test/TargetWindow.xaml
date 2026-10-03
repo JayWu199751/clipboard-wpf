@@ -2,7 +2,9 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="P5 下层靶窗" WindowStyle="SingleBorderWindow" ShowInTaskbar="False"
-        Background="#FFF0F2F5" Topmost="False">
+        Background="#FFF0F2F5" Topmost="True">
+  <!-- Topmost：保证 z 序确定为「探针（Topmost，后显示）> 靶窗 > 其余应用窗口」，
+       否则角外穿透会落到本会话控制台等普通窗口上，试验结果受环境影响 -->
   <Grid>
     <TextBlock Text="下层靶窗：探针角外的点击应当落到这里"
                FontSize="20" FontWeight="Bold" Foreground="#FF444444"

@@ -141,6 +141,11 @@ public partial class MainWindow : Window
 
         // B：浏览态（NOACTIVATE）真实点击
         await PhaseB();
+        if (_clickDiag.Count > 0)
+        {
+            _log.AppendLine();
+            _log.AppendLine($"- 注入自诊断：{string.Join("；", _clickDiag)}");
+        }
 
         // C：输入态（可激活）真实点击 + 键盘 + 不透明控制组
         await PhaseC();
@@ -203,12 +208,14 @@ public partial class MainWindow : Window
     private async Task PhaseB()
     {
         // B1 搜索井
+        RaiseProbeAboveTarget();
         ClickElement(SearchWell);
         await Task.Delay(350);
         Verdict("B1 浏览态点击搜索井计数且不激活", _wellClicks == 1 && GetForegroundWindow() == _baselineForeground,
             $"井计数={_wellClicks}，前台仍=基准");
 
         // B2 卡片 + 页脚
+        RaiseProbeAboveTarget();
         ClickElement(Card2);
         await Task.Delay(350);
         ClickElement(Footer);
@@ -225,12 +232,14 @@ public partial class MainWindow : Window
             $"靶计数={_targetClicks}，点击前 WindowFromPoint={wpBefore}（透明背景，alpha 与 HTTRANSPARENT 并存）");
 
         // B4 角部方带内但弧内的点（0.6R 对角）真实点击——弧内区域可交互（该点落在搜索井上）
+        RaiseProbeAboveTarget();
         ClickElement(SearchWell);
         await Task.Delay(350);
         Verdict("B4 弧内区域真实点击可达控件", _wellClicks == 2,
             $"对角 0.6R 处点击命中搜索井，井计数={_wellClicks}");
 
         // B5/B6 紧贴弧边界（对角线弧边界在 t≈0.293R）：±4% R 内夹紧「命中区域与视觉圆角一致」
+        RaiseProbeAboveTarget();
         var shellBefore = _shellClicks;
         ClickAt(ScreenPointOf(Corner.TopLeft, 0.32)); // 距弧心 ≈0.962R，弧内
         await Task.Delay(350);
@@ -250,6 +259,7 @@ public partial class MainWindow : Window
         // C1 进入输入态：清 NOACTIVATE，真实点击搜索框 → 激活 + 键入
         SetNoActivate(on: false);
         SearchBox.IsReadOnly = false; // 只读 TextBox 会吞键入，输入态先解锁（与主工程 search-enter 同义）
+        RaiseProbeAboveTarget();
         ClickElement(SearchBox);
         await Task.Delay(350);
         var activated = GetForegroundWindow() == Hwnd && SearchBox.IsKeyboardFocused;
@@ -266,41 +276,50 @@ public partial class MainWindow : Window
             GetForegroundWindow() == (_target?.Hwnd ?? IntPtr.Zero) && _targetClicks >= 2,
             $"前台={DescribeWindow(GetForegroundWindow())}，靶计数={_targetClicks}");
 
-        // C3 控制组：角部不透明（alpha>0），分层 alpha 通道关闭，穿透只能来自 HTTRANSPARENT。
-        // 注意 WindowFromPoint 本身也尊重 WM_NCHITTEST，其返回值只作记录不作 alpha 证据；
-        // 决定性证据是真实注入点击（系统点击路由）落到靶窗。
+        // C3 跨带控制：把靶窗降到普通带（探针在 Topmost 带），角部改不透明——
+        // 唯一候选机制是 HTTRANSPARENT。试验结论：HTTRANSPARENT 不跨带转发真实点击，
+        // 点击被丢弃（前台变 NULL、靶窗计数不变），且该行为未见于任何文档——不可依赖。
+        var notTopmost = new IntPtr(-2); // HWND_NOTOPMOST
+        _ = SetWindowPos(_target!.Hwnd, notTopmost, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         Background = Brushes.Magenta; // 角部方带不再是 0 alpha
         await Task.Delay(300);
         var wp = WindowFromPointAt(outside);
+        var targetBeforeC3 = _targetClicks;
         ClickAt(outside);
         await Task.Delay(350);
-        var ctrlOk = GetForegroundWindow() == (_target?.Hwnd ?? IntPtr.Zero) && _targetClicks >= 3;
+        var dropped = _targetClicks == targetBeforeC3
+            && GetForegroundWindow() != (_target?.Hwnd ?? IntPtr.Zero);
         Background = Brushes.Transparent;
         await Task.Delay(200);
-        Verdict("C3 控制：角部不透明（仅剩 HTTRANSPARENT 机制）点击穿透？",
-            ctrlOk,
-            $"角部 alpha=255，点击前 WindowFromPoint={wp}，点击后前台={DescribeWindow(GetForegroundWindow())}，靶计数={_targetClicks}（未过=HTTRANSPARENT 跨线程不转发真实点击，重要负发现）");
+        Verdict("C3 跨带控制：HTTRANSPARENT 跨带转发真实点击？",
+            dropped,
+            $"角部 alpha=255、靶窗在普通带：点击后前台={DescribeWindow(GetForegroundWindow())}，靶计数 {targetBeforeC3}→{_targetClicks}，点击前 WindowFromPoint（查询路径）={wp}；「转发成功=未过」。跨带点击被丢弃为钉死的负发现");
 
-        // C4 再点搜索框：重复激活可靠
+        // C4 再点搜索框：重复激活可靠（靶窗已降普通带，探针抬回带顶后点击）
+        RaiseProbeAboveTarget();
         ClickElement(SearchBox);
         await Task.Delay(350);
         Verdict("C4 重复点击搜索框重新激活探针", GetForegroundWindow() == Hwnd,
             $"前台=探针:{GetForegroundWindow() == Hwnd}");
 
-        // C5 归因控制：关钩子（弧外只剩分层 alpha 一个机制）→ 与 C3 形成归因矩阵
+        // C5 归因控制：关钩子（只剩分层 alpha），靶窗仍在普通带 → alpha 跨带穿透应成立
         _hookEnabled = false;
         await Task.Delay(300);
         var wp5 = WindowFromPointAt(outside);
         ClickAt(outside);
         await Task.Delay(350);
-        var c5ok = _targetClicks >= 3 && GetForegroundWindow() == (_target?.Hwnd ?? IntPtr.Zero);
+        var c5ok = _targetClicks == targetBeforeC3 + 1
+            && GetForegroundWindow() == (_target?.Hwnd ?? IntPtr.Zero);
         _hookEnabled = true;
+        // 靶窗回到 Topmost 带（下一窗口之上），恢复确定性 z 序
+        _ = SetWindowPos(_target!.Hwnd, new IntPtr(-1), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         await Task.Delay(200);
-        Verdict("C5 归因控制：仅分层 alpha（钩子关闭）角外点击穿透", c5ok,
-            $"透明背景+无 WM_NCHITTEST 处理，点击后前台={DescribeWindow(GetForegroundWindow())}，靶计数={_targetClicks}，点击前 WindowFromPoint={wp5}");
+        Verdict("C5 归因控制：仅分层 alpha（钩子关闭）跨带穿透", c5ok,
+            $"透明背景+无 WM_NCHITTEST 处理、靶窗普通带：点击后前台={DescribeWindow(GetForegroundWindow())}，靶计数 {targetBeforeC3}→{_targetClicks}，点击前 WindowFromPoint={wp5}");
 
         // D：单击事件诊断——B2 观察到一次注入点击计了 3 次（非确定），连点 3 次记录
         // 每次事件的 ClickCount/时间戳，归因是双击合成还是事件重复
+        RaiseProbeAboveTarget();
         var diagBefore = _cardClicks;
         for (var i = 0; i < 3; i++)
         {
@@ -460,13 +479,20 @@ public partial class MainWindow : Window
 
     private void ClickElement(FrameworkElement element) => ClickAt(CenterOf(element));
 
-    private void ClickAt((int X, int Y) pt)
+    private bool ClickAt((int X, int Y) pt)
     {
-        _ = SetCursorPos(pt.X, pt.Y);
+        var setOk = SetCursorPos(pt.X, pt.Y);
         Thread.Sleep(80);
-        _ = SendInput(1, new[] { MouseInput(MOUSEEVENTF_LEFTDOWN) }, Marshal.SizeOf<INPUT>());
+        _ = GetCursorPos(out var actual);
+        var down = SendInput(1, new[] { MouseInput(MOUSEEVENTF_LEFTDOWN) }, Marshal.SizeOf<INPUT>());
         Thread.Sleep(60);
-        _ = SendInput(1, new[] { MouseInput(MOUSEEVENTF_LEFTUP) }, Marshal.SizeOf<INPUT>());
+        var up = SendInput(1, new[] { MouseInput(MOUSEEVENTF_LEFTUP) }, Marshal.SizeOf<INPUT>());
+        if (!setOk || actual.X != pt.X || actual.Y != pt.Y || down == 0 || up == 0)
+        {
+            _clickDiag.Add($"ClickAt({pt.X},{pt.Y}) SetCursorPos={setOk} 实际光标=({actual.X},{actual.Y}) " +
+                $"SendInput down={down} up={up} err={Marshal.GetLastWin32Error()}");
+        }
+        return setOk && down == 1 && up == 1;
     }
 
     private string WindowFromPointAt((int X, int Y) pt)
@@ -695,9 +721,22 @@ public partial class MainWindow : Window
 
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOSIZE = 0x0001;
+
+    /// <summary>
+    /// 靶窗与探针同为 Topmost 时，探针 ShowActivated=False 显示不激活、留在带底，
+    /// 且靶窗每次被点击激活都会再抬升。角内点击前无激活地抬回 Topmost 带顶，
+    /// 保证「探针 &gt; 靶窗 &gt; 其余窗口」的确定性 z 序（不抢前台，浏览态语义不变）。
+    /// </summary>
+    private void RaiseProbeAboveTarget() =>
+        _ = SetWindowPos(Hwnd, new IntPtr(-1), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT point);
 
     [DllImport("user32.dll")]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);

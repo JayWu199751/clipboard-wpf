@@ -11,9 +11,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
-  <!-- 单测归测试工程（P5GeometryTests.csproj），不进探针主程序 -->
+  <!-- 几何纯函数归 P5Geometry 类库、单测归 tests/，均不进本工程通配 -->
   <ItemGroup>
-    <Compile Remove="GeometryTests.cs" />
+    <Compile Remove="P5Geometry\**\*.cs;tests\**\*.cs" />
+    <ProjectReference Include="P5Geometry\P5Geometry.csproj" />
   </ItemGroup>
 
 </Project>

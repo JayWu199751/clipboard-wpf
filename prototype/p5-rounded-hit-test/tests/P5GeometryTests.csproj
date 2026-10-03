@@ -3,7 +3,8 @@
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
     <IsPackable>false</IsPackable>
-    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>P5RoundedHitTest.Tests</RootNamespace>
     <AssemblyName>P5GeometryTests</AssemblyName>
   </PropertyGroup>
@@ -15,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\P5RoundedHitTest.csproj" />
+    <ProjectReference Include="..\P5Geometry\P5Geometry.csproj" />
   </ItemGroup>
 
 </Project>
