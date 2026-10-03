@@ -264,6 +264,26 @@ internal static class NativeMethods
     public const uint WM_QUIT = 0x0012;
     public const uint WM_TIMER = 0x0113;
 
+    // ---------- 注册表主题键读取与监听（F26–F28） ----------
+
+    public static readonly IntPtr HKEY_CURRENT_USER = new(unchecked((int)0x80000001));
+    public const int RRF_RT_REG_DWORD = 0x00000002;
+    public const int REG_NOTIFY_CHANGE_LAST_SET = 0x00000004;
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int RegGetValueW(IntPtr hkey, string lpSubKey, string lpValue,
+        int dwFlags, IntPtr pdwType, out uint pvData, out uint pcbData);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int RegOpenKeyW(IntPtr hkey, string lpSubKey, out IntPtr phkResult);
+
+    [DllImport("advapi32.dll")]
+    public static extern int RegCloseKey(IntPtr hkey);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern int RegNotifyChangeKeyValue(IntPtr hkey, bool watchSubtree,
+        int notifyFilter, IntPtr manualResetEvent, bool asynchronous);
+
     // ---------- 焦点恢复与注入（本仓库 ADR-0003；F12/F13） ----------
 
     [StructLayout(LayoutKind.Sequential)]
