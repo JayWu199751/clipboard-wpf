@@ -141,4 +141,8 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
 - 2026-10-03：**P5 跨 DPI 圆角穿透试验通过（合并 22b282f）**：穿透机制=分层窗口逐像素 alpha（AllowsTransparency 0 alpha 区）+ WM_NCHITTEST 钩子（弧内 HTCLIENT/弧外 HTTRANSPARENT；纯函数 CornerHitGeometry，radius 36 DIP × GetDpi 实时值，lParam 必须有符号解析）；175% 真机弧扫 64 点全一致 + 真实点击把边界夹紧到 ±4%R；浏览态/输入态全过；负坐标经移窗 (-300,-200)+有符号 lParam 消息级验证（模拟）。
   **11 票接入红线（ADR-0006）：禁止整窗 WS_EX_TRANSPARENT；HTTRANSPARENT 只能当 fringe 防误触的丢弃语义——真实点击跨窗口转发不可靠（实测）；WindowFromPoint 尊重 HTTRANSPARENT，不能用它推断真实点击路由**。
   几何单测 19/19（主线复验）、自检连续两轮 17/17（含跨带归因控制）、主方案 215/215。真机待人工（100/125/150% 运行时、真实多屏负坐标、物理鼠标/触屏、IME 组合点角外）见 [10 票证据](issues/10-P5跨DPI圆角穿透试验.md)，Execution 已置 resolved。
-- 当前前沿：09（T06）与 11（T07）并行——T06 E2E 门禁已放行、T07 无头先行（GUI 验证排队等 T06 完成）；12（T08）仅余 11 阻塞。
+- 2026-10-03：**T06 图片链路完成（合并 35e5e3e）**：DibDecoder/PngEncoder 正式化（P3 蓝本 56 例迁入主测试）+ 身份判定改**规范化 RGBA SHA-1**（ADR-0005，旧 image crate 与新 WIC 编码同像素同身份，Bgra32 非预乘）；IImageFileStore.HashPng / IClipboardWriter.WriteImage（DIBV5 主格式保透明 + 40 头 DIB 兼容，绝不写文件路径）；ThumbnailCache 双上限 LRU（≤32 张/≤24 MiB 解码像素估算）按 Id 记忆化、失效含在途、代次防错图、停靠清缓存/呼出预热；图卡 150 DIP contain + 棋盘格底 + 文件名行；ContainerDiagnostics 环境变量门控（正常运行零开销）。
+  **E2E 43 项断言全过**（tools/E2eT09，真实存档备份恢复）：系统截图+合成透明截图（CF_DIB/DIBV5）入库像素零差异、同图重复制身份命中不重写文件、双击复制 CF_DIBV5 回读 153600 像素零差异；4K 混合 206 条滚动 139.9ms/批、realized 峰值 13=distinct 实例（Recycling 真机证据）；200 裁剪删 PNG 联动、清空后 images/ 零残留。
+  测试 302/302（215+87），构建零警告。待人工：画图/Office 目测观感（位图层已像素级验证）、Office 多格式复制；来源应用捕获 F06 未接线（meta 恒显未知来源，不在本票范围）。
+  **新观察点入档（交 T09/终评跟进）**：约 20 条撤销窗口并存且容器持续重建时个别 Del 无效（停靠排空后恢复，疑似 Items 重建竞态中 SelectedItemId 短暂失效）。09 票 Execution 已置 resolved。
+- 当前前沿：11（T07）无头完成（307/307）且 GUI 门禁已放行；12（T08）仅余 11 阻塞。
