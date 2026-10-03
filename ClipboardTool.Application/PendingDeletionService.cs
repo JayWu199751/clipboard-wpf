@@ -97,6 +97,27 @@ public sealed class PendingDeletionService : IDisposable
         _state = PendingDeletion.EmptyState();
     }
 
+    /// <summary>
+    /// 清空历史前的协调入口（F33）：托盘「清空历史」会把全部条目连同尚未到期的删除流程目标
+    /// 一并删掉——先取消全部到期计时、清空摘除状态并通知渲染层重载，否则残留计时到期后
+    /// 会在 store 里找不到条目而误报「删除失败」。调用方随后执行 HistoryService.Clear()
+    /// （含置顶与 PNG 联动），无确认窗（legacy 行为）。
+    /// </summary>
+    public void ClearAll()
+    {
+        if (_timers.Count == 0 && _state.Count == 0)
+        {
+            return;
+        }
+        foreach (var timer in _timers.Values)
+        {
+            timer.Dispose();
+        }
+        _timers.Clear();
+        _state = PendingDeletion.EmptyState();
+        HiddenChanged?.Invoke();
+    }
+
     private void Deadline(string id)
     {
         _ = _timers.Remove(id);

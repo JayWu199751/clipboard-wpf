@@ -167,6 +167,44 @@ public class PendingDeletionServiceTests
         Assert.Null(history.Find(second));
     }
 
+    // —— 清空历史协调（F33；托盘清空入口在删除窗口内也要稳） ——
+    [Fact]
+    public void ClearAll_取消全部计时并清空隐藏集合_通知渲染层()
+    {
+        var history = CreateHistory("a", "b");
+        var service = CreateService(history);
+        service.Request(history.Entries[0].Id);
+        service.Request(history.Entries[1].Id);
+        var notificationsBefore = _hiddenNotifications.Count;
+
+        service.ClearAll();
+
+        Assert.Empty(service.HiddenIds);
+        Assert.Equal(2, _scheduler.Timers.Count(t => !t.Running)); // 两条到期计时都必须取消
+        Assert.True(_hiddenNotifications.Count > notificationsBefore, "隐藏集合清空要通知渲染层重载");
+    }
+
+    [Fact]
+    public void ClearAll_之后到期不真删不误报()
+    {
+        // 清空历史把条目一并删了：若删除流程还挂着计时，到期会找不到条目而误报「删除失败」
+        var history = CreateHistory("a", "b");
+        var service = CreateService(history);
+        service.Request(history.Entries[0].Id);
+        service.Request(history.Entries[1].Id);
+        _toasts.Clear();
+
+        service.ClearAll();
+        history.Clear(); // 托盘清空历史的落库动作
+        foreach (var timer in _scheduler.Timers)
+        {
+            timer.Fire(); // 已取消的计时器即使被触发（防御）也不得有副作用
+        }
+
+        Assert.Empty(_toasts); // 清空后的到期路径不得再报删除失败
+        Assert.Empty(service.HiddenIds);
+    }
+
     /// <summary>假调度器：记录 Delay(ms, callback) 与取消；测试手动 Fire 触发到期。</summary>
     private sealed class FakeScheduler : IDelayScheduler
     {
@@ -186,6 +224,10 @@ public class PendingDeletionServiceTests
 
             public void Fire()
             {
+                if (!Running)
+                {
+                    return; // 已取消/已触发的计时器：Fire 无副作用（真实调度器同语义）
+                }
                 Running = false;
                 callback();
             }
