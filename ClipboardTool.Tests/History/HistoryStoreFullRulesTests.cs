@@ -6,13 +6,16 @@ using Xunit;
 namespace ClipboardTool.Tests.HistoryRules;
 
 /// <summary>图片文件端口假件：写盘恒成功（路径 /images/{id}.png）、哈希恒空（图片去重因此默认不命中）、
-/// 文件恒存在、删文件记进日志——与 legacy history.rs 测试的 Ports::fake 同形状。</summary>
+/// 文件恒存在、删文件记进日志——与 legacy history.rs 测试的 Ports::fake 同形状。
+/// HashPng 缺省按字节内容 SHA-1（模拟「解码 PNG → 规范化身份」的确定性映射，
+/// 让按字节相同的去重用例照常工作；规范化等价本身由参照 PNG 测试与 ImageFileStore 测试钉住）。</summary>
 public sealed class FakeImageFiles : IImageFileStore
 {
     public List<string> Removed { get; } = [];
     public int SaveCalls { get; private set; }
     public Func<byte[], string, string?>? SaveOverride { get; set; }
     public Func<string, string>? HashOverride { get; set; }
+    public Func<byte[], string>? HashPngOverride { get; set; }
     public Func<string, bool>? ExistsOverride { get; set; }
 
     public string? SavePng(byte[] png, string id)
@@ -23,6 +26,9 @@ public sealed class FakeImageFiles : IImageFileStore
     }
 
     public string HashFile(string path) => HashOverride?.Invoke(path) ?? string.Empty;
+
+    public string HashPng(byte[] png) =>
+        HashPngOverride?.Invoke(png) ?? HistoryStoreFullRulesTests.ImageSha1Hex(png);
 
     public void RemoveFile(string path) => Removed.Add(path);
 
@@ -216,6 +222,29 @@ public sealed class HistoryStoreFullRulesTests
         var outcome = store.RecordImage("x"u8.ToArray());
         Assert.Null(outcome.Entry);
         Assert.Equal(0, store.Count);
+    }
+
+    [Fact]
+    public void recordImage同图跨格式命中_沿用原id不重写文件()
+    {
+        // ADR-0005 第 4 条：身份 = PNG 解码 → 规范化 RGBA → SHA-1。同一像素的
+        // 旧版（image crate）编码与新编码字节不同，身份必须相同、命中沿用原 id 不重写文件。
+        // 假件以「同像素 → 同哈希」模拟解码规范化；规范化等价本身由参照 PNG 测试与
+        // ImageFileStore 测试钉住。
+        var images = new FakeImageFiles
+        {
+            HashPngOverride = _ => "pixhash-A",   // 两种编码解出同一像素
+            HashOverride = _ => "pixhash-A",      // 磁盘文件同样解出该像素
+        };
+        var store = CreateStore(images: images);
+        var first = store.RecordImage("legacy-image-crate-png"u8.ToArray()).Entry!;
+
+        var again = store.RecordImage("wic-png"u8.ToArray()); // 同图、编码字节不同
+
+        Assert.True(again.Deduped);
+        Assert.Equal(first.Id, again.Entry!.Id);
+        Assert.Equal(1, images.SaveCalls); // 命中不重写文件
+        Assert.Equal(1, store.Count);
     }
 
     [Fact]

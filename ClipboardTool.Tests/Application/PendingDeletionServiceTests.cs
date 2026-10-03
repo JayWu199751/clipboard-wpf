@@ -199,6 +199,7 @@ public class PendingDeletionServiceTests
     {
         public string? SavePng(byte[] png, string id) => null;
         public string HashFile(string path) => string.Empty;
+        public string HashPng(byte[] png) => string.Empty;
         public void RemoveFile(string path) { }
         public bool FileExists(string path) => false;
     }
