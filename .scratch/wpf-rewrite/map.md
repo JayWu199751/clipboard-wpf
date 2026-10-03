@@ -100,3 +100,12 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   待人工：真实键盘 Enter、目标窗口关闭失败路径、光标原位、浏览器输入框（见[工单证据记录](issues/03-T02文字复制粘贴闭环.md)）。
   03 票 Execution 已置 resolved。
 - 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；T02 真机人工项见 03 票；正式内存门槛推迟到旧版基线实测后。
+- 2026-10-03：**T03 完成（提交 f5a4bbf）**：旧档加载与身份落位端到端落地（122/122 测试全绿，零警告）。
+  Domain.History 完整规则（身份/两块落位/裁剪/备注 Rune 归一化/Load 过滤重建）、HistoryArchive 旧档往返
+  （serde 语义对齐：缺省归一化 vs 类型坏整条作废）、Domain.Settings 三键容错（auto_start 兼容）；
+  Infrastructure JsonStore（.tmp→替换原子写、坏档 backup/ 备份、读失败 Unreadable）+ ImageFileStore；
+  HistoryService 持久化收敛（变更+落盘同临界区、四态读档分派、读失败本会话禁写防覆盖原件）。
+  两轴评审修复 P0：读失败按缺档会以空表覆盖从未读出的原件（新增 Unreadable 禁写态）。
+  真机人工项（存档副本演练、只读恢复）见 [04 票证据记录](issues/04-T03旧档与身份落位.md)。
+  待办移交：备注编辑器 UTF-16 上限与存储 Rune 语义对齐归 T05；落盘失败提示归 T05 toast；诊断日志归 T08。
+  04 票 Execution 已置 resolved；05（T04）/07（P3）/08（P4）/09（T06）阻塞解除。
