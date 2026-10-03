@@ -1,4 +1,5 @@
 Status: ready-for-agent
+Execution: claimed
 Type: prototype
 
 # 07: P3 DIBV5 透明截图解码试验
