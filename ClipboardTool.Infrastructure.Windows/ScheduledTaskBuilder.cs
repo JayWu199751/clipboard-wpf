@@ -1,7 +1,5 @@
-using System.Diagnostics;
-using System.IO;
+using System.Runtime.InteropServices;
 using System.Security;
-using System.Text;
 using System.Xml.Linq;
 using ClipboardTool.Application;
 
@@ -58,81 +56,60 @@ public static class ScheduledTaskBuilder
 }
 
 /// <summary>
-/// 计划任务注册执行（F36）：schtasks 三件套——/Query /XML 读事实、/Create /XML /F 幂等替换、
-/// （卸载另用 /Delete，归安装包与人工步骤）。查询失败按缺席处理：缺席在判定表里只会引出
-/// 重建动作，重建失败再如实报错，查询误判不会被放大成错误事实。
+/// 计划任务注册执行（F36）：Task Scheduler COM API——RegisterTask(TASK_CREATE_OR_UPDATE)
+/// 幂等替换定义；GetFolder().GetTask 读事实（缺席抛 0x80070002，按缺席收敛）。
+/// 为什么不用 schtasks：其 /Query /XML 的 stdout 编码随机器代码页漂移（本机实测恒解码失败，
+/// 把在册任务误判成缺席）；COM 直连无编码坑、免临时文件、免进程拉起。卸载删除归 NSIS 卸载器。
 /// </summary>
 public sealed class ScheduledTaskRegistrar : IScheduledTaskPort
 {
+    // COM 常量（taskschd.h）：TASK_CREATE_OR_UPDATE、TASK_LOGON_INTERACTIVE_TOKEN
+    private const int TaskCreateOrUpdate = 6;
+    private const int TaskLogonInteractiveToken = 3;
+
     public TaskFacts ReadState(string taskName)
     {
-        var psi = new ProcessStartInfo("schtasks");
-        psi.ArgumentList.Add("/Query");
-        psi.ArgumentList.Add("/TN");
-        psi.ArgumentList.Add(taskName);
-        psi.ArgumentList.Add("/XML");
-        psi.CreateNoWindow = true;
-        psi.UseShellExecute = false;
-        psi.RedirectStandardOutput = true;
-        psi.RedirectStandardError = true;
-        psi.StandardOutputEncoding = Encoding.Unicode; // schtasks /XML 输出 UTF-16
-        using var process = Process.Start(psi);
-        if (process is null)
+        try
         {
+            dynamic svc = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service")!)!;
+            svc.Connect();
+            var task = svc.GetFolder("\\").GetTask(taskName); // 缺席：COMException 0x80070002
+            var doc = XDocument.Parse((string)task.Xml);
+            var ns = doc.Root?.Name.NamespaceName ?? ScheduledTaskBuilder.Namespace;
+            return new TaskFacts(
+                Exists: true,
+                HasLogonTrigger: doc.Descendants(XName.Get("LogonTrigger", ns)).Any(),
+                ExePath: doc.Descendants(XName.Get("Command", ns)).FirstOrDefault()?.Value ?? string.Empty);
+        }
+        catch (System.Runtime.InteropServices.COMException ex) when (ex.HResult == unchecked((int)0x80070002))
+        {
+            return new TaskFacts(false, false, string.Empty); // 任务不存在 → 按缺席收敛
+        }
+        catch (Exception)
+        {
+            // 事实不可读（COM 不可用等）也按缺席收敛：判定表最多引出一次幂等重建，重建失败如实报错
             return new TaskFacts(false, false, string.Empty);
         }
-        var stdout = process.StandardOutput.ReadToEnd();
-        process.WaitForExit();
-        if (process.ExitCode != 0 || !stdout.Contains("<Task "))
-        {
-            return new TaskFacts(false, false, string.Empty); // 任务不存在（或定义不可读）→ 按缺席收敛
-        }
-        var doc = XDocument.Parse(stdout);
-        var ns = doc.Root?.Name.NamespaceName ?? ScheduledTaskBuilder.Namespace;
-        return new TaskFacts(
-            Exists: true,
-            HasLogonTrigger: doc.Descendants(XName.Get("LogonTrigger", ns)).Any(),
-            ExePath: doc.Descendants(XName.Get("Command", ns)).FirstOrDefault()?.Value ?? string.Empty);
     }
 
     public bool Register(string taskName, string exePath, bool withLogonTrigger)
     {
-        var xmlPath = Path.Combine(Path.GetTempPath(), $"ClipboardTool-task-{Guid.NewGuid():N}.xml");
         try
         {
-            File.WriteAllText(xmlPath, ScheduledTaskBuilder.BuildTaskXml(exePath, withLogonTrigger), Encoding.Unicode);
-            var psi = new ProcessStartInfo("schtasks");
-            psi.ArgumentList.Add("/Create");
-            psi.ArgumentList.Add("/TN");
-            psi.ArgumentList.Add(taskName);
-            psi.ArgumentList.Add("/XML");
-            psi.ArgumentList.Add(xmlPath);
-            psi.ArgumentList.Add("/F");
-            psi.CreateNoWindow = true;
-            psi.UseShellExecute = false;
-            psi.RedirectStandardError = true;
-            using var process = Process.Start(psi);
-            if (process is null)
-            {
-                return false;
-            }
-            process.WaitForExit();
-            return process.ExitCode == 0;
+            dynamic svc = Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service")!)!;
+            svc.Connect();
+            svc.GetFolder("\\").RegisterTask(
+                taskName,
+                ScheduledTaskBuilder.BuildTaskXml(exePath, withLogonTrigger),
+                TaskCreateOrUpdate,
+                null, null,
+                TaskLogonInteractiveToken,
+                null);
+            return true;
         }
         catch (Exception)
         {
             return false;
-        }
-        finally
-        {
-            try
-            {
-                File.Delete(xmlPath);
-            }
-            catch (IOException)
-            {
-                // 临时 XML 清理失败无害（%TEMP% 内）
-            }
         }
     }
 }

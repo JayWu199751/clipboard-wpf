@@ -1,0 +1,10 @@
+新日志行:
+  03:42:18.834 主题服务就绪
+  03:42:18.839 历史加载完成（0 条）
+  03:42:18.846 剪贴板监听已启动
+  03:42:18.923 托盘创建完成
+  03:42:19.168 计划任务收敛 action=CreateWithoutTrigger ok=True
+  03:42:19.168 == OnStartup 完成，面板已 Show ==
+pid=13052 elevated=True path=? err=-
+procs: PASS
+after-kill proc-count=0
