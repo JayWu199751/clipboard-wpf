@@ -1,0 +1,2 @@
+setup-exit=0 instdir=True task-survived-upgrade=False task-lastwrite-before=10/04/2026 03:52:32 after=
+启动后: 03:53:14.073 计划任务收敛 action=CreateWithoutTrigger ok=True

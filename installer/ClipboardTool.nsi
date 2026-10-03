@@ -19,12 +19,15 @@ RequestExecutionLevel admin
 !define PRODUCT_PUBLISHER "ClipboardTool Project"
 !define PRODUCT_GUID "{7E4A9C31-8F2D-4B6A-9C05-3A1D8E52F7B4}"
 !define TASK_NAME "ClipboardToolElevated"
-!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
+; 注册表键名用 GUID（新产品身份）：旧 Tauri 版在 Uninstall\ClipboardTool（64 位视图）留有键，
+; 同名会覆盖旧键违背 ADR-0001「互不覆盖」；GUID 键两代互不干扰
+!define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_GUID}"
+!define APP_REGKEY "Software\${PRODUCT_GUID}"
 
 Name "${PRODUCT_NAME}"
 OutFile "ClipboardTool-Setup.exe"
 InstallDir "$PROGRAMFILES64\${PRODUCT_NAME}"
-InstallDirRegKey HKLM "Software\${PRODUCT_NAME}" "InstallDir"
+InstallDirRegKey HKLM "${APP_REGKEY}" "InstallDir"
 
 !define MUI_ABORTWARNING
 !insertmacro MUI_PAGE_WELCOME
@@ -37,28 +40,25 @@ InstallDirRegKey HKLM "Software\${PRODUCT_NAME}" "InstallDir"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
-; perMachine：x64 校验 + 全机上下文（快捷方式写到所有用户的开始菜单/桌面）
+; perMachine：x64 校验 + 64 位注册表视图 + 全机上下文（快捷方式写到所有用户的开始菜单/桌面）
 Function .onInit
   ${IfNot} ${RunningX64}
     MessageBox MB_ICONSTOP "本安装包仅支持 64 位 Windows（ADR-0001：Win10 22H2+ / Win11）。"
     Abort
   ${EndIf}
+  SetRegView 64
   SetShellVarContext all
 FunctionEnd
 
 Function un.onInit
+  SetRegView 64
   SetShellVarContext all
 FunctionEnd
 
 Section "安装"
-  ; 升级：已装旧版则先静默卸载（同身份覆盖升级；不删存档）
-  ReadRegStr $R0 HKLM "${UNINST_KEY}" "UninstallString"
-  ${If} $R0 != ""
-    DetailPrint "检测到已安装版本，先静默卸载……"
-    ExecWait '"$R0" /S _?=$INSTDIR'
-  ${EndIf}
-
-  ; 运行中的实例先结束（两代同跑会争抢呼出键/共写存档）
+  ; 升级=覆盖安装（NSIS 惯例）：不做先卸后装——那样会连计划任务一起删掉；
+  ; 文件直接覆盖，快捷方式与注册表就地重建，任务 exe 路径变化由应用下次
+  ; 提权启动按 F36 判定表重注册收敛（升级更新任务 exe 路径）。
   nsExec::Exec 'taskkill /IM "${PRODUCT_NAME}.exe" /F'
   Sleep 500
 
@@ -72,7 +72,7 @@ Section "安装"
 
   ; 卸载器与注册表（新产品身份：独立 productName/GUID，与旧 Tauri 版互不覆盖）
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKLM "Software\${PRODUCT_NAME}" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "${APP_REGKEY}" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${PRODUCT_NAME}"
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
@@ -85,9 +85,10 @@ Section "安装"
 SectionEnd
 
 Section "Uninstall"
-  ; 卸载界面明确说明：存档默认保留
+  ; 卸载界面明确说明：存档默认保留（/SD=静默卸载时自动应答）
   MessageBox MB_ICONINFORMATION \
-    "即将卸载 ${PRODUCT_NAME}。$\n$\n将移除：程序文件、快捷方式、计划任务 ${TASK_NAME}。$\n将保留：你的剪贴板存档（%APPDATA%\ClipboardTool），可随时手动删除或供重装后继续使用。"
+    "即将卸载 ${PRODUCT_NAME}。$\n$\n将移除：程序文件、快捷方式、计划任务 ${TASK_NAME}。$\n将保留：你的剪贴板存档（%APPDATA%\ClipboardTool），可随时手动删除或供重装后继续使用。" \
+    /SD IDOK
   nsExec::Exec 'taskkill /IM "${PRODUCT_NAME}.exe" /F'
   Sleep 500
 
@@ -100,6 +101,6 @@ Section "Uninstall"
   RMDir /r "$INSTDIR"
 
   DeleteRegKey HKLM "${UNINST_KEY}"
-  DeleteRegKey HKLM "Software\${PRODUCT_NAME}"
+  DeleteRegKey HKLM "${APP_REGKEY}"
   DetailPrint "用户存档 %APPDATA%\ClipboardTool 已保留。"
 SectionEnd
