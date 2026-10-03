@@ -1,4 +1,5 @@
-Status: ready-for-agent
+Status: in-progress
+Execution: claimed
 Type: prototype
 
 # 10: P5 跨 DPI 圆角穿透试验
