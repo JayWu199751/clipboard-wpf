@@ -24,6 +24,12 @@ public partial class PanelWindow : Window
     private const double FallbackMonitorHeightPx = 1080;
     private const double FallbackDpiScale = 1.0;
 
+    /// <summary>toast 时长（F46）：普通 2600ms、入场 240ms、离场 160ms；撤销 toast 6000ms 见 PendingDeletionService.UndoToastMs。
+    /// 窄窗页脚收紧阈值 ≤340 DIP（04-界面还原规格 §窄窗）。</summary>
+    private const int ToastLifeMs = 2600;
+    private const int ToastLeaveMs = 160;
+    private const double FooterCompactWidthDip = 340;
+
     /// <summary>外壳圆角与描边（与 PanelWindow.xaml 保持一致）；内容裁剪半径 = 圆角 − 描边 − 让位。</summary>
     private const double ShellCornerRadiusDip = 36;
     private const double ShellBorderThicknessDip = 2;
@@ -38,6 +44,7 @@ public partial class PanelWindow : Window
     private readonly ScreenMetricsProvider _screens = new();
     private readonly PanelViewModel _viewModel;
     private readonly SearchDebouncer _searchDebouncer;
+    private string _noteDraftInitial = string.Empty; // 进入备注编辑时的原文快照（保存差异判断）
     private bool _docked = true;
     private bool _syncingSelection;
     private bool _suppressQueryEvents; // 程序性写查询文本（重置/清除）时不进防抖
@@ -52,7 +59,16 @@ public partial class PanelWindow : Window
     /// <summary>IME composition 开始/结束（F21；经宿主上报协调器做导航键让位）。</summary>
     public event Action<bool>? CompositionChanged;
 
-    /// <summary>备注编辑占位退出（Enter/Esc；完整编辑器归 T05）。</summary>
+    /// <summary>Z 置顶切换（F24；选中项 id，置顶效果经 Application 落库）。</summary>
+    public event Action<string>? PinRequested;
+
+    /// <summary>Del 延迟删除（F25；选中项 id，摘除与撤销窗口由 Application 服务管理）。</summary>
+    public event Action<string>? DeleteRequested;
+
+    /// <summary>备注保存（F07；Enter/失焦/强退差异路径共用，raw 草稿由调用方 trim）。</summary>
+    public event Action<string, string>? NoteSaveRequested;
+
+    /// <summary>备注取消（Esc：不保存直接退态）。</summary>
     public event Action? NoteEditExitRequested;
 
     public PanelWindow()
@@ -109,15 +125,19 @@ public partial class PanelWindow : Window
         }
     }
 
-    /// <summary>整表重载历史条目（历史服务的事件已归队 UI 线程）；重放当前查询。</summary>
-    public void ReloadEntries(IReadOnlyList<Domain.History.HistoryEntry> entries)
+    /// <summary>整表重载历史条目并注入延迟删除遮罩（历史/删除服务的事件已归队 UI 线程）；重放当前查询。</summary>
+    public void ReloadEntries(IReadOnlyList<Domain.History.HistoryEntry> entries, IReadOnlyCollection<string>? hiddenIds = null)
     {
+        if (hiddenIds is not null)
+        {
+            _viewModel.SetHiddenIds(hiddenIds);
+        }
         _viewModel.Reload(entries);
         SyncSelectionToView(scroll: true);
     }
 
-    /// <summary>显示焦点错误提示（文案与结果契约同源；呼出时清除，F14）。</summary>
-    public void ShowStatus(string message) => _viewModel.StatusText = message;
+    /// <summary>页脚右侧焦点错误（F45 覆盖普通键位组；呼出时清除，F14）。</summary>
+    public void ShowStatus(string message) => _viewModel.FooterStatus = message;
 
     /// <summary>
     /// 呼出落地：光标所在屏工作区居中，尺寸按 F15 公式；光标屏放不下时主屏兜底；回读验证落地。
@@ -198,29 +218,66 @@ public partial class PanelWindow : Window
                 }
                 break;
             case "note-edit-enter":
-                // 备注编辑占位：只落状态与焦点（Enter 保存/Esc 取消/失焦保存/长度规则归 T05）
-                _viewModel.NoteEditingId = noteEntryId ?? _viewModel.SelectedItemId;
+                // 进入内联备注编辑（F07）：草稿初值=编辑目标的当前备注（已有非空备注进入时全选由可见事件完成）
+                var noteTarget = noteEntryId ?? _viewModel.SelectedItemId;
+                if (noteTarget is null)
+                {
+                    break; // 空列表无编辑目标
+                }
+                _noteDraftInitial = _viewModel.Items
+                    .FirstOrDefault(card => card.Id == noteTarget)?.Note ?? string.Empty;
+                _viewModel.NoteDraft = _noteDraftInitial;
+                _viewModel.NoteEditingId = noteTarget;
                 _viewModel.SetFooterMode(PanelMode.NoteEdit);
                 break;
             case "note-edit-exit":
+                // 状态机强退（进别的输入态/停靠）：legacy handleNoteEditExit——按差异保存后清态
+                CommitNoteDraftIfChanged();
                 _viewModel.NoteEditingId = null;
+                _viewModel.NoteDraft = string.Empty;
                 _viewModel.SetFooterMode(PanelMode.Browse);
                 break;
             case "delete":
+                // Del 延迟删除（F25）：立即摘除可见列表 + 6 秒撤销，摘除与真删由 Application 服务管理
+                if (_viewModel.SelectedItemId is { } deleteId)
+                {
+                    DeleteRequested?.Invoke(deleteId);
+                }
+                break;
             case "pin":
-                // Del 延迟删除与 Z 置顶的领域效果归 T05；键位让位矩阵本票已生效
+                // Z 置顶切换（F24）：置顶移置顶块首、取消移普通块首（取消保留原 pinnedAt）
+                if (_viewModel.SelectedItemId is { } pinId)
+                {
+                    PinRequested?.Invoke(pinId);
+                }
                 break;
         }
     }
 
-    /// <summary>呼出重置（F14）：选中第一项、退搜索、清查询、清焦点错误与备注编辑。</summary>
+    /// <summary>
+    /// 放弃指向指定条目的备注编辑（删除流程的 hide 语义，legacy App.tsx hide 分支清 noteEdit）：
+    /// 只清渲染态不保存不退态（退态由调用方编排）。编辑目标不匹配则无操作。
+    /// </summary>
+    public void AbandonNoteEditIfEditing(string entryId)
+    {
+        if (_viewModel.NoteEditingId != entryId)
+        {
+            return;
+        }
+        _viewModel.NoteEditingId = null;
+        _viewModel.NoteDraft = string.Empty;
+        _viewModel.SetFooterMode(PanelMode.Browse);
+    }
+
+    /// <summary>呼出重置（F14）：选中第一项、退搜索、清查询、清焦点错误与备注编辑（不保存差异）。</summary>
     public void HandlePanelShown()
     {
-        _viewModel.StatusText = string.Empty;
+        _viewModel.FooterStatus = string.Empty;
         _viewModel.SearchActive = false;
         SearchBox.IsReadOnly = true;
         ResetQuery();
         _viewModel.NoteEditingId = null;
+        _viewModel.NoteDraft = string.Empty;
         _viewModel.SetFooterMode(PanelMode.Browse);
         _viewModel.SelectedIndex = 0;
         SyncSelectionToView(scroll: true);
@@ -401,14 +458,14 @@ public partial class PanelWindow : Window
     /// <summary>当前选中条目 id（Enter 复制并粘贴的目标；无选中返回 null）。</summary>
     public string? SelectedCardId => (HistoryList.SelectedItem as CardViewModel)?.Id;
 
-    // —— 备注编辑占位（T05 接管保存/取消/失焦规则） ——
+    // —— 内联备注编辑（F07/F47；legacy ClipCard note-input + App.tsx noteEdit） ——
 
     private void OnNoteBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         if (sender is TextBox box && (bool)e.NewValue)
         {
             box.Focus();
-            box.SelectAll();
+            box.SelectAll(); // 已有非空备注进入时全选（F07）
         }
     }
 
@@ -419,20 +476,159 @@ public partial class PanelWindow : Window
         {
             return;
         }
-        if (e.Key is Key.Enter or Key.Escape)
+        if (e.Key is Key.Enter)
         {
             e.Handled = true;
-            NoteEditExitRequested?.Invoke(); // 占位：只退态不落库（保存规则归 T05）
+            SaveNoteFromEditor();
+        }
+        else if (e.Key is Key.Escape)
+        {
+            // 取消：不保存直接退态（legacy finishNoteEditing(true) 一律不保存）。
+            // 先清 NoteEditingId 再退态：协调器随后发的 note-edit-exit 会因编辑态已清而短路，
+            // 不会走强退差异保存路径（两态意图分离，避免取消被静默改成保存）
+            e.Handled = true;
+            _viewModel.NoteEditingId = null;
+            _viewModel.NoteDraft = string.Empty;
+            _viewModel.SetFooterMode(PanelMode.Browse);
+            NoteEditExitRequested?.Invoke();
         }
     }
 
-    /// <summary>渲染复制并粘贴结果（结果契约 message 单源；呼出时清除）。</summary>
+    /// <summary>失焦保存（F07）：编辑仍指向本卡时按保存路径退态；取消/保存路径退态后的 blur 直接跳过。</summary>
+    private void OnNoteBoxLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.NoteEditingId is not null)
+        {
+            SaveNoteFromEditor();
+        }
+    }
+
+    /// <summary>
+    /// 保存路径：先清编辑态再发保存事件——App 侧退态发出的 note-edit-exit 会因编辑态已清而短路，
+    /// 不产生重入双发（legacy 用 noteSavePendingRef 互斥，此处以「清态先行」达成同一保证）。
+    /// </summary>
+    private void SaveNoteFromEditor()
+    {
+        var id = _viewModel.NoteEditingId;
+        if (id is null)
+        {
+            return;
+        }
+        var draft = _viewModel.NoteDraft;
+        _viewModel.NoteEditingId = null;
+        _viewModel.NoteDraft = string.Empty;
+        _viewModel.SetFooterMode(PanelMode.Browse);
+        NoteSaveRequested?.Invoke(id, draft);
+    }
+
+    /// <summary>强退差异保存（legacy handleNoteEditExit）：草稿与进入时原文有差异才发保存事件。</summary>
+    private void CommitNoteDraftIfChanged()
+    {
+        if (_viewModel.NoteEditingId is null)
+        {
+            return;
+        }
+        if (!string.Equals(_viewModel.NoteDraft.Trim(), _noteDraftInitial.Trim(), StringComparison.Ordinal))
+        {
+            NoteSaveRequested?.Invoke(_viewModel.NoteEditingId, _viewModel.NoteDraft);
+        }
+    }
+
+    // —— toast 栈（F46；legacy ToastStack + pushToast） ——
+
+    /// <summary>
+    /// 入栈一条 toast：普通 2600ms、带动作（撤销）6000ms；入场淡入 240ms、离场淡出 160ms 后移除。
+    /// 动作点击立即离场（DismissToast 另行排程移除，重复排程对已移除元素无操作）。
+    /// </summary>
+    public void ShowToast(string message, string? dim, bool isError, string? actionLabel, Action? onAction)
+    {
+        var toast = new ToastViewModel
+        {
+            Message = message,
+            Dim = dim,
+            IsError = isError,
+            ActionLabel = actionLabel,
+            OnAction = onAction,
+        };
+        _viewModel.Toasts.Add(toast);
+        var life = actionLabel is not null ? PendingDeletionService.UndoToastMs : ToastLifeMs;
+        ScheduleToastRemoval(toast, life);
+        // 布局就绪后再触发入场淡入（Entering=True → False 的转换动画在 XAML 触发）
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
+        {
+            if (_viewModel.Toasts.Contains(toast))
+            {
+                toast.Entering = false;
+            }
+        });
+    }
+
+    /// <summary>动作按钮（撤销）：执行回调并立即离场（160ms 淡出后移除）。</summary>
+    private void OnToastAction(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is ToastViewModel { } toast)
+        {
+            toast.OnAction?.Invoke();
+            DismissToast(toast);
+        }
+    }
+
+    private void DismissToast(ToastViewModel toast)
+    {
+        if (toast.Leaving)
+        {
+            return;
+        }
+        toast.Leaving = true;
+        RemoveToastLater(toast, ToastLeaveMs);
+    }
+
+    private void ScheduleToastRemoval(ToastViewModel toast, int lifeMs)
+    {
+        var leave = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(lifeMs),
+        };
+        leave.Tick += (_, _) =>
+        {
+            leave.Stop();
+            DismissToast(toast);
+        };
+        leave.Start();
+    }
+
+    private void RemoveToastLater(ToastViewModel toast, int delayMs)
+    {
+        var remove = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(delayMs),
+        };
+        remove.Tick += (_, _) =>
+        {
+            remove.Stop();
+            _viewModel.Toasts.Remove(toast);
+        };
+        remove.Start();
+    }
+
+    /// <summary>页脚紧凑态（F47 窄档）：页脚实际宽度 ≤340 DIP 时收紧（左右 10、字 9.5、组距 3）。</summary>
+    private void OnFooterSizeChanged(object sender, SizeChangedEventArgs e) =>
+        _viewModel.FooterCompact = e.NewSize.Width <= FooterCompactWidthDip;
+
+    /// <summary>渲染复制并粘贴结果（结果契约 message 单源；呼出时清除）。失败红叉 toast；
+    /// 成功绿勾 toast（F46；面板即刻停靠 F12，toast 随停靠不可见——与 legacy 同为停靠窗口内的
+    /// 短暂残留，2.6s 内再呼出可见）。</summary>
     public void ShowResult(Domain.PasteChain.CopyResult result)
     {
-        if (!result.Ok)
+        if (result.Ok)
         {
-            _viewModel.StatusText = result.Message;
+            ShowToast("已复制并粘贴", null, isError: false, actionLabel: null, onAction: null);
         }
-        // 成功文案「已复制并粘贴」不打扰：面板即刻停靠（F12），无额外提示需求
+        else
+        {
+            ShowToast(result.Message, null, isError: true, actionLabel: null, onAction: null);
+        }
     }
 }

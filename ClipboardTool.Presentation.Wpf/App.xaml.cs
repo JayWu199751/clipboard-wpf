@@ -21,6 +21,7 @@ public partial class App : System.Windows.Application
     private ModeExecutor? _executor;
     private ClipboardMessageSource? _clipboardSource;
     private PanelCoordinator? _coordinator;
+    private PendingDeletionService? _deletion;
 
     /// <summary>焦点快照的真源在协调器（FocusTargetSnapshot）：呼出时补拍、退出输入态复用、
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
@@ -103,15 +104,34 @@ public partial class App : System.Windows.Application
             hidePanel: HidePanelAfterPaste,
             reportFocusError: (stage, _) => ShowStatus(PasteChain.FocusErrorMessage(stage)));
 
-        // 历史变更（监听线程/链路线程触发）归队 UI 渲染
-        _history.EntriesChanged += () => Dispatcher.BeginInvoke(() => _panel?.ReloadEntries(_history!.Entries));
-        _panel.ReloadEntries(_history.Entries);
+        // 延迟删除（F25）：摘除/撤销窗口/到期真删。计时经 Dispatcher 调度器在 UI 线程触发，
+        // 与面板编排同线程封闭；跨停靠/呼出继续计时（秒表语义，不随面板隐藏重置）。
+        // 订阅处的归队是防御性的（服务已承诺 UI 线程触发；与 HistoryService 的任意线程事件区分）。
+        _deletion = new PendingDeletionService(new DispatcherDelayScheduler(Dispatcher), _history);
+        _deletion.HiddenChanged += () => Dispatcher.BeginInvoke(() =>
+            _panel?.ReloadEntries(_history!.Entries, _deletion!.HiddenIds));
+        _deletion.ToastRequested += toast => Dispatcher.BeginInvoke(() =>
+            _panel?.ShowToast(toast.Message, toast.Dim, toast.IsError, toast.ActionLabel, toast.OnAction));
+
+        // 历史变更（监听线程/链路线程触发）归队 UI 渲染；遮罩随快照重注（到期收尾/撤销都会通知）
+        _history.EntriesChanged += () => Dispatcher.BeginInvoke(() =>
+            _panel?.ReloadEntries(_history!.Entries, _deletion!.HiddenIds));
+        _panel.ReloadEntries(_history.Entries, _deletion.HiddenIds);
 
         // —— 面板事件 → 意图/编排（UI 线程封闭；协调器状态与全部效果调用都在该线程） ——
         _panel.CardPasteRequested += RequestPaste;
         _panel.SearchActivationRequested += EnterSearch;
         _panel.CompositionChanged += composing => _coordinator.SetComposing(composing);
         _panel.NoteEditExitRequested += () => _coordinator.ExitInput(PanelMode.NoteEdit, restoreFocus: true);
+        _panel.PinRequested += id => _history.TogglePin(id); // 取消置顶保留 pinnedAt（存档契约）
+        // 删除先放弃指向该条的编辑（legacy hide 分支清 noteEdit；无编辑则退态/放弃均无操作）
+        _panel.DeleteRequested += id =>
+        {
+            _panel.AbandonNoteEditIfEditing(id);
+            _coordinator!.ExitInput(PanelMode.NoteEdit, restoreFocus: false);
+            _deletion!.Request(id);
+        };
+        _panel.NoteSaveRequested += SaveNote;
 
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
@@ -146,6 +166,7 @@ public partial class App : System.Windows.Application
     {
         Log($"== OnExit 退出码={e.ApplicationExitCode} ==");
         _panel = null;
+        _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
         _hotkeys?.Dispose();
         _clipboardSource?.Dispose();
         _executor?.Dispose();
@@ -195,6 +216,38 @@ public partial class App : System.Windows.Application
     private void DockFromPanel() => DockPanel(restoreFocus: true);
 
     private void EnterSearch() => _ = _coordinator!.EnterInput(PanelMode.Search);
+
+    /// <summary>
+    /// 备注保存（F07）：编辑器侧只 trim，对比与写库都在服务侧（事实源）；空串等同移除。
+    /// 保存即退输入态（legacy endNoteEdit → 主进程 exit_input：面板回浏览态并归还前台；
+    /// 强退路径协调器已先退，此处 no-op）。成功 toast「备注已保存（dim 前 18 字符）」/
+    /// 「备注已移除」，失败提示（F07 保存失败提示）。
+    /// </summary>
+    private void SaveNote(string id, string rawDraft)
+    {
+        _coordinator!.ExitInput(PanelMode.NoteEdit, restoreFocus: true);
+        var text = rawDraft.Trim();
+        var previous = _history!.Find(id)?.Note ?? string.Empty;
+        if (text == previous)
+        {
+            return; // 无差异不写库（legacy finishNoteEditing）
+        }
+        if (_history.SetNote(id, text))
+        {
+            _panel?.ShowToast(
+                text.Length > 0 ? "备注已保存" : "备注已移除",
+                text.Length > 0 ? CompressNoteDim(text) : null,
+                isError: false, actionLabel: null, onAction: null);
+        }
+        else
+        {
+            _panel?.ShowToast("备注保存失败", null, isError: true, actionLabel: null, onAction: null);
+        }
+    }
+
+    /// <summary>保存成功 toast 的次级说明（legacy dim：text.slice(0, 18)）。</summary>
+    private static string CompressNoteDim(string text) =>
+        text.Length > 18 ? text[..18] : text;
 
     /// <summary>热键触发：呼出走停靠编排，导航动作按「真实按下」分发并武装长按连发（F19）。</summary>
     private void OnKeyAction(PanelKeyAction action)
