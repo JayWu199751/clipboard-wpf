@@ -26,14 +26,59 @@ public partial class App : System.Windows.Application
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
     private FocusTarget? CapturedFocus => _coordinator?.FocusTargetSnapshot;
 
+    // —— 启动诊断日志（临时排查启动不可见/进程退出问题；%LOCALAPPDATA%\ClipboardTool\startup.log） ——
+    private static readonly string LogPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "ClipboardTool", "startup.log");
+
+    private static void Log(string message)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
+            File.AppendAllText(LogPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
+        }
+        catch
+        {
+            // 日志失败不能阻塞启动
+        }
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        Log("== OnStartup 开始 ==");
+        DispatcherUnhandledException += (_, args) =>
+        {
+            Log($"[UI线程异常] {args.Exception}");
+            args.Handled = true;
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            Log($"[未处理异常 线程将终止={args.IsTerminating}] {args.ExceptionObject}");
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            Log("[ProcessExit] 进程退出（托管路径）");
+        // 心跳：后台线程每 5 秒一行；日志断点即进程死亡时刻（区分托管退出 vs 原生崩溃/外部终止）
+        new Thread(() =>
+        {
+            for (var i = 1; ; i++)
+            {
+                Thread.Sleep(5000);
+                Log($"[心跳] +{i * 5}s");
+            }
+        })
+        { IsBackground = true }.Start();
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            Log($"[未观察任务异常] {args.Exception}");
+            args.SetObserved();
+        };
+
         base.OnStartup(e);
 
         _panel = new PanelWindow();
         _hotkeys = new HotkeyExecutor();
         _executor = new ModeExecutor();
         _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
+        Log("核心对象构造完成");
 
         // 存档目录 %APPDATA%\ClipboardTool（02-spec/02 §1 契约）：历史 JSON、图片、设置同目录。
         // T03 起接 JsonStore：启动读旧档（坏档先备份），变更自动落盘。
@@ -47,6 +92,7 @@ public partial class App : System.Windows.Application
             () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         _history = new HistoryService(store, new JsonStore(dataDir));
         _history.LoadFromStorage();
+        Log($"历史加载完成（{_history.Entries.Count} 条）");
         _watch = new ClipboardWatchService(
             new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter());
         _paste = new PasteService(
@@ -69,6 +115,7 @@ public partial class App : System.Windows.Application
 
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
+        Log("剪贴板监听已启动");
 
         // 键位计划由协调器按四态推导差量（F18–F21）：停靠态={呼出键}；呼出浏览态=呼出键+八导航键；
         // 搜索/备注/捕获按让位矩阵增删。注册动作在宿主 RegisterKey 里按动作分发（呼出/导航）。
@@ -89,12 +136,15 @@ public partial class App : System.Windows.Application
                 ("退出", Shutdown),
             ],
             tooltip: "ClipboardTool");
+        Log("托盘创建完成");
 
         _panel.Show();
+        Log("== OnStartup 完成，面板已 Show ==");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        Log($"== OnExit 退出码={e.ApplicationExitCode} ==");
         _panel = null;
         _hotkeys?.Dispose();
         _clipboardSource?.Dispose();
