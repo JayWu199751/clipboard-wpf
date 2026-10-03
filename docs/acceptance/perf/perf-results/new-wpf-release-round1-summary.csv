@@ -1,0 +1,4 @@
+﻿"label","round","phase","medianPrivateMB","medianWorkingSetMB","medianHandles","maxTreeCount","totalCpuMs"
+"new-wpf-release","1","cold","94.3","160.3","1700","1","781"
+"new-wpf-release","1","idle","94.3","160.3","1700","1","781"
+"new-wpf-release","1","summon","104.4","177.3","1692","1","2891"
