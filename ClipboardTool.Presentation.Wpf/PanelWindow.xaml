@@ -591,6 +591,39 @@
                         </Grid>
                     </Grid>
                 </Border>
+                <!-- 捕获覆盖层（F31）：捕获态全让位（全局键由状态机注销），录入新呼出键的编辑器层。
+                     提示文案与状态由宿主按判定结果下发；Esc 取消在窗口级 PreviewKeyDown 拦截 -->
+                <Grid x:Name="CaptureOverlay"
+                      Grid.Row="0" Grid.RowSpan="3"
+                      Background="{DynamicResource Brush.App}"
+                      Visibility="Collapsed"
+                      IsHitTestVisible="True">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320">
+                        <TextBlock Text="按下新的快捷键组合"
+                                   FontSize="15"
+                                   FontWeight="Medium"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Primary}" />
+                        <TextBlock Text="需要包含 Ctrl / Alt / Win 修饰键"
+                                   Margin="0,8,0,0"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Secondary}" />
+                        <TextBlock x:Name="CaptureStatusText"
+                                   Margin="0,16,0,0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Primary}" />
+                        <TextBlock Text="Esc 取消"
+                                   Margin="0,16,0,0"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10.5"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Tertiary}" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 

@@ -46,4 +46,15 @@ public sealed class TrayIconSync
         _lastIcon = hicon;
         return hicon;
     }
+
+    /// <summary>进程收尾：销毁当前持有的 HICON。</summary>
+    public void Dispose()
+    {
+        if (_lastIcon != IntPtr.Zero)
+        {
+            _factory.Destroy(_lastIcon);
+            _lastIcon = IntPtr.Zero;
+        }
+        _lastKey = null;
+    }
 }

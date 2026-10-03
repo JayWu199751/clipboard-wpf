@@ -65,6 +65,12 @@ public sealed class ThemeService
     /// <summary>当前偏好（三态）。</summary>
     public ThemeKind Preference => _sync.Current.Preference ?? ThemeKind.System;
 
+    /// <summary>面板内容当前有效明暗（未分派过时按当前偏好现读）。</summary>
+    public bool IsPanelDark => _lastPanelDark ?? PanelIsDark(Preference);
+
+    /// <summary>托盘图标当前有效明暗（未分派过时按当前偏好现读）。</summary>
+    public bool IsTrayDark => _lastTrayDark ?? TrayIsDark(Preference);
+
     /// <summary>
     /// 手选主题的单一权威入口（托盘菜单三态项/启动按钮/初始化）：落盘 → 偏好推进 →
     /// 面板与托盘两路明暗分派 → 菜单重建通知。落盘失败原样保留旧偏好。
