@@ -44,36 +44,12 @@ public partial class App : System.Windows.Application
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
     private FocusTarget? CapturedFocus => _coordinator?.FocusTargetSnapshot;
 
-    // —— 启动诊断日志（临时排查启动不可见/进程退出问题；%LOCALAPPDATA%\ClipboardTool\startup.log） ——
-    private static readonly string LogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ClipboardTool", "startup.log");
-
-    private static void Log(string message)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-            File.AppendAllText(LogPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
-        }
-        catch
-        {
-            // 日志失败不能阻塞启动
-        }
-    }
+    // —— 启动诊断日志（startup.log）已按 F39/F40 收尾移除（T08 交接项）：
+    //    日志仅为 T08 真机排查启动问题临时引入，移除前已冷启动验证启动路径无日志依赖。
+    //    崩溃取证语义（F40 panic.log）未实现，见验收矩阵 F39/F40 行。
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        Log("== OnStartup 开始 ==");
-        DispatcherUnhandledException += (_, args) =>
-        {
-            Log($"[UI线程异常] {args.Exception}");
-            args.Handled = true;
-        };
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            Log($"[未处理异常 线程将终止={args.IsTerminating}] {args.ExceptionObject}");
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-            Log("[ProcessExit] 进程退出（托管路径）");
         base.OnStartup(e);
 
         // —— 单实例（F34，必须最先判）：mutex 归属判「谁是首个实例」；第二实例经 pipe
@@ -98,24 +74,20 @@ public partial class App : System.Windows.Application
         var summonPipe = $"ClipboardTool-{sid}-summon";
         var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");        if (!gate.TryAcquire())
         {
-            Log("已有实例在运行：投递呼出请求后退出");
             // 经线程池等待（不直接 GetResult）：本方法跑在 UI 线程的 Dispatcher 上下文上，
             // 直接同步阻塞会让 await 续体排队回一个已被阻塞的 Dispatcher → 经典死锁。
             var delivered = Task.Run(() => SummonClient.SummonAsync(summonPipe, timeoutMs: 5000))
                 .GetAwaiter().GetResult();
-            Log($"呼出投递结果 delivered={delivered}");
             Shutdown(delivered ? 0 : 1);
             return;
         }
         var summonServer = new SummonServer(summonPipe);
         summonServer.SummonReceived += () => Dispatcher.BeginInvoke(SummonFromTray);
-        Log("单实例归属确认");
 
         _panel = new PanelWindow();
         _hotkeys = new HotkeyExecutor();
         _executor = new ModeExecutor();
         _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
-        Log("核心对象构造完成");
 
         // —— 主题（F26–F28）：ThemeService 单一权威；注册表监听线程的广播归队 UI 线程。
         //    落盘失败不推进偏好（可重试）；面板跟应用模式键、托盘跟任务栏键，两路独立判定。
@@ -127,7 +99,6 @@ public partial class App : System.Windows.Application
         watcher.ThemeChanged += () => Dispatcher.BeginInvoke(_theme.RefreshFromSystem);
         watcher.Start();
         ApplyPanelTheme(PanelIsDark(_settings.Theme)); // 启动即落当前有效皮肤（不落盘不发事件链）
-        Log("主题服务就绪");
 
         // 共享缩略图缓存（T06）：解码 Task.Run 后台线程（结果 Freeze）、回调归队 UI；
         // 双上限（32 张 / 24 MiB）、按 Id 记忆化、失效与代次规则在缓存内部
@@ -145,7 +116,6 @@ public partial class App : System.Windows.Application
             () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         _history = new HistoryService(store, _settingsStore);
         _history.LoadFromStorage();
-        Log($"历史加载完成（{_history.Entries.Count} 条）");
         _watch = new ClipboardWatchService(
             new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter());
         _paste = new PasteService(
@@ -188,7 +158,6 @@ public partial class App : System.Windows.Application
 
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
-        Log("剪贴板监听已启动");
 
         // 键位计划由协调器按四态推导差量（F18–F21）：停靠态={呼出键}；呼出浏览态=呼出键+八导航键；
         // 搜索/备注/捕获按让位矩阵增删。注册动作在宿主 RegisterKey 里按动作分发（呼出/导航）。
@@ -208,7 +177,6 @@ public partial class App : System.Windows.Application
         _tray.MenuItemSelected += id => Dispatcher.BeginInvoke(() => OnTrayMenu(id));
         RebuildTrayMenu();
         SyncTrayIcon(TrayIsDark(_settings.Theme));
-        Log("托盘创建完成");
 
         // 呼出键没注册上=整会话热键哑；按 5s/20s 现读设置重试两遍（差量幂等，F32）
         var retry = new SummonKeyRetry(
@@ -222,13 +190,10 @@ public partial class App : System.Windows.Application
 
         // 启动收敛放尾部：一次 schtasks 查询（无动作时不注册），结果只记诊断不阻断启动
         var convergence = _startup.ConvergeOnStartup(IsDevelopmentBuild, _isElevated, _settings.AutoStart);
-        Log($"计划任务收敛 action={convergence.Action} ok={convergence.Ok}");
-        Log("== OnStartup 完成，面板已 Show ==");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        Log($"== OnExit 退出码={e.ApplicationExitCode} ==");
         _panel = null;
         _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
         _hotkeys?.Dispose();

@@ -145,6 +145,7 @@
                                          VerticalContentAlignment="Center"
                                          Padding="0"
                                          IsReadOnly="True"
+                                         AutomationProperties.Name="{x:Static local:AccessibilityNames.SearchInput}"
                                          TextChanged="OnSearchBoxTextChanged" />
                                 <TextBlock Text="{Binding PlaceholderText}"
                                            FontSize="13.5"
@@ -163,7 +164,9 @@
                                 </TextBlock>
                             </Grid>
 
-                            <!-- 清除按钮：仅搜索态且有查询时出现；点击清查询并保留输入焦点（F23） -->
+                            <!-- 清除按钮：仅搜索态且有查询时出现；点击清查询并保留输入焦点（F23）；
+                                 纯图形无文本，F48 显式命名；Focusable=False 与 legacy 一致（鼠标专用，
+                                 焦点留在搜索框），IsFocused 触发器保留为完整视觉状态 -->
                             <Button x:Name="SearchClear"
                                     Grid.Column="2"
                                     Width="16" Height="16"
@@ -171,12 +174,15 @@
                                     VerticalAlignment="Center"
                                     Visibility="Collapsed"
                                     Focusable="False"
+                                    AutomationProperties.Name="{x:Static local:AccessibilityNames.SearchClear}"
                                     PreviewMouseLeftButtonDown="OnSearchClearPress">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="ClearBg"
                                                 Background="Transparent"
-                                                CornerRadius="8">
+                                                CornerRadius="8"
+                                                BorderThickness="1"
+                                                BorderBrush="Transparent">
                                             <Viewbox Width="10" Height="10">
                                                 <Canvas Width="24" Height="24">
                                                     <Line X1="5" Y1="5" X2="19" Y2="19"
@@ -191,6 +197,9 @@
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="ClearBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                            </Trigger>
+                                            <Trigger Property="IsFocused" Value="True">
+                                                <Setter TargetName="ClearBg" Property="BorderBrush" Value="{DynamicResource Brush.Border.Selected}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -245,6 +254,7 @@
                          Background="Transparent"
                          BorderThickness="0"
                          Padding="0"
+                         AutomationProperties.Name="{x:Static local:AccessibilityNames.HistoryList}"
                          PreviewMouseDoubleClick="OnCardDoubleClick"
                          SelectionChanged="OnListSelectionChanged"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -396,6 +406,7 @@
                                                  Padding="7,0"
                                                  VerticalContentAlignment="Center"
                                                  MaxLength="{x:Static panelModes:PanelFooterRegistry.MaxNoteLength}"
+                                                 AutomationProperties.Name="{x:Static local:AccessibilityNames.NoteEditor}"
                                                  FocusVisualStyle="{x:Null}"
                                                  PreviewKeyDown="OnNoteBoxKeyDown"
                                                  LostFocus="OnNoteBoxLostFocus"
@@ -433,6 +444,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
+                            <!-- F48：Message 文本块锚定播报（Name=Announcement 含错误前缀/动作/dim，
+                                 LiveSetting=Polite 让 Narrator 主动播报状态）；普通 Border 无 peer，
+                                 播报必须锚在有 peer 的文本块上 -->
                             <Border Height="34"
                                     Padding="14,0,8,0"
                                     Margin="0,4,0,0"
@@ -444,10 +458,15 @@
                                     <Style TargetType="Border">
                                         <Setter Property="Opacity" Value="1" />
                                         <Style.Triggers>
-                                            <!-- 入场：入栈时 Entering=True 保持透明，置 False 触发 240ms 淡入（F46） -->
-                                            <DataTrigger Binding="{Binding Entering}" Value="True">
+                                            <!-- 入场（F46 入栈 240ms 淡入）：Entering 置 False 触发；
+                                                 Animated=False（系统减少动态 F48）时不藏起也不播动画，直接可见 -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Entering}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Opacity" Value="0" />
-                                                <DataTrigger.ExitActions>
+                                                <MultiDataTrigger.ExitActions>
                                                     <!-- BeginStoryboard.Storyboard 只接受 Storyboard 类型，动画必须包一层（否则模板解析炸、炸断整条刷新链） -->
                                                     <BeginStoryboard>
                                                         <Storyboard>
@@ -455,20 +474,31 @@
                                                                              To="1" Duration="0:0:0.24" />
                                                         </Storyboard>
                                                     </BeginStoryboard>
-                                                </DataTrigger.ExitActions>
-                                            </DataTrigger>
-                                            <!-- 离场：160ms 淡出后由窗口移除 -->
-                                            <DataTrigger Binding="{Binding Leaving}" Value="True">
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
+                                            <!-- 离场：Animated=True 走 160ms 淡出；False 直接消失（随后由窗口移除） -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Leaving}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Opacity" Value="0" />
-                                                <DataTrigger.EnterActions>
+                                                <MultiDataTrigger.EnterActions>
                                                     <BeginStoryboard>
                                                         <Storyboard>
                                                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                                              To="0" Duration="0:0:0.16" />
                                                         </Storyboard>
                                                     </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                            </DataTrigger>
+                                                </MultiDataTrigger.EnterActions>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Leaving}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Opacity" Value="0" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
@@ -511,6 +541,8 @@
                                                Margin="8,0,0,0"
                                                FontSize="12"
                                                VerticalAlignment="Center"
+                                               AutomationProperties.Name="{Binding Announcement}"
+                                               AutomationProperties.LiveSetting="Polite"
                                                Foreground="{DynamicResource Brush.Text.Primary}" />
                                     <TextBlock Text="{Binding Dim}"
                                                Margin="6,0,0,0"
@@ -539,6 +571,10 @@
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter TargetName="ToastActionBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                                    </Trigger>
+                                                    <!-- F48 键盘焦点环：撤销按钮可被键盘聚焦时显示完整环 -->
+                                                    <Trigger Property="IsFocused" Value="True">
+                                                        <Setter TargetName="ToastActionBg" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Text}" />
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -673,6 +709,7 @@
                                    TextWrapping="Wrap"
                                    TextAlignment="Center"
                                    HorizontalAlignment="Center"
+                                   AutomationProperties.Name="{x:Static local:AccessibilityNames.CaptureStatus}"
                                    Foreground="{DynamicResource Brush.Text.Primary}" />
                         <TextBlock Text="Esc 取消"
                                    Margin="0,16,0,0"

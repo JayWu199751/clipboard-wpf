@@ -449,7 +449,8 @@ public partial class PanelWindow : Window
         {
             return;
         }
-        _viewModel.SelectedIndex = HistoryList.SelectedIndex; // 鼠标点选回写视图模型（键盘导航基准）
+        // 容器回写经噪音过滤（T09 Del 竞态修复）：重建/Recycling 换绑的 -1 不落回视图模型
+        _viewModel.SyncSelectionFromContainer(HistoryList.SelectedIndex);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -605,6 +606,9 @@ public partial class PanelWindow : Window
             IsError = isError,
             ActionLabel = actionLabel,
             OnAction = onAction,
+            // F48：播报文本与动画开关在入栈时一次定死（Announcement 含错误前缀/动作/dim）
+            Announcement = ToastAnnouncement.Build(message, isError, actionLabel, dim),
+            Animated = AccessibilityMotion.PlayAnimations,
         };
         _viewModel.Toasts.Add(toast);
         var life = actionLabel is not null ? PendingDeletionService.UndoToastMs : ToastLifeMs;
