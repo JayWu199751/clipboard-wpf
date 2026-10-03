@@ -149,4 +149,8 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   **E2E 揪出三枚真缺陷并修复（各带回归测试）**：① 二实例呼出 UI 线程同步等待死锁（Task.Run + ConfigureAwait(false)）；② 单实例 Gate 被 GC 后 Mutex 终结器释放锁（RootedGates 钉住）；③ RegGetValueW 本机恒败 1630（换 RegQueryValueExW + REG_DWORD 校验）。次修正：IsPanelOnScreen 动态屏宽；E2E 托盘菜单走真实右键路径、flyout 用鼠标收起（Esc 会停靠已显面板）。
   待人工：175% 托盘图标目测锐度、托盘变色像素复核（截图存 evidence-t07/）、他机提权 UAC。见 [11 票证据记录](issues/11-T07系统集成.md)。11 票 Execution 已置 resolved；12（T08）阻塞解除。
 - 2026-10-04：T07 分支合并入集成主线（合并 4d35502），主线独立复验 397/397 绿、构建零错误；evidence-t07 截图与 tools/E2eT07 随分支入库。
-- 当前前沿：12（T08）开工；13（T09）仅余 12 阻塞。
+- 2026-10-04：**T08 提权与安装完成（合并 dbef12d）**：425/425 测试绿（净增 28：启动通道三态逻辑/intent×factual 判定表 10 行/任务 XML 引号与触发器/清单断言）；真机三验全过——发布产物直启 TokenElevation=True、计划任务收敛三段（意图开→补触发器、意图关→移触发器保任务、已对齐→None）、NSIS 装→覆盖升级→卸载零残留 + 存档保留断言；安装包 60MB（自包含 141MB 压缩 42.7%，低于 ADR-0001 预期下沿）。
+  **真机修复三缺陷**：schtasks stdout 编码误判在册任务→改 Task Scheduler COM API；NSIS 键名改产品 GUID+SetRegView 64 防**覆盖旧 Tauri 遗留键**（ADR-0001 互不覆盖，旧键未动，控制面板双条目属切换路径解决）；先卸后装升级删计划任务→改覆盖安装。
+  待人工：重启后三路呼出（触发器已写入任务 XML，不重启用户机器）、schtasks /Run 目测、他机交互式 UAC、托盘开机启动 UI 点击链路。见 [12 票证据](issues/12-T08提权与安装.md)，Execution 已置 resolved。
+  T08→T09 交接：startup.log 诊断日志（%LOCALAPPDATA%\ClipboardTool\startup.log）F39/F40 收尾按 map 记录移除（26a0022）；任务 XML 用 COM 注册、卸载删任务在 NSIS 卸载器内；e2e-*.txt 取证随库。
+- 当前前沿：13（T09）收尾验收开工；完成后终审 code-review → 合回 main。
