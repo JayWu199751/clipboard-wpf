@@ -85,4 +85,11 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   键位按状态差量（停靠 {呼出键}/浏览 {呼出键,Esc 停靠}，F18 让位模型）；呼出落地三条件回读（legacy landing_verdict）；明暗 token 字典逐值对齐 theme.css；
   tools/BaselineSampler 四指标 CSV。评审发现并修复 bug：DockStateChanged 先于 Attach 触发致热键注册到空 HWND（执行者现暴露 Attached 并忽略未挂接 ApplyPlan）。
   待人工：真实键盘 WM_HOTKEY 送达、IME、多屏 DPI 交叉、托盘点击（见[工单证据记录](issues/01-空WPF骨架与HUD.md)）。01 票 Execution 已置 resolved。
+- 2026-10-03：**P2 提权焦点恢复试验通过（连续两轮 6/6 门禁 + 负控）**（[prototype/p2-elevated-focus/REPORT.md](../../prototype/p2-elevated-focus/REPORT.md)）——
+  high 进程向 medium/high 目标恢复+注入全链路成功（探针靶窗与真实记事本双证据，恢复后前台/焦点/内容三重回读）；
+  失效快照与 HWND 复用（PID/TID 校验）在 restore 阶段拒绝且零注入；paste 阶段失败分开报可演示；
+  负控实测 SendInput 返回 4/4 但 low→high 内容被 UIPI 静默过滤（「成功必须回读」钉住）。
+  legacy focus_paste.rs 的 C# 移植（FocusRestore.cs）为 03 票 FocusAdapter 蓝本，结论落 [ADR-0003](../../docs/adr/0003-提权焦点恢复与注入策略.md)。
+  探针侧观察：runner 拉起子进程后立即激活会冻结靶窗 UI 线程；改为普通侧预启动+充分初始化后稳定。
+  02 票 Execution 已置 resolved；03（T02）阻塞解除。
 - 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；正式内存门槛推迟到旧版基线实测后。
