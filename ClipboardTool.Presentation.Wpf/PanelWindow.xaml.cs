@@ -44,6 +44,7 @@ public partial class PanelWindow : Window
     private readonly ScreenMetricsProvider _screens = new();
     private readonly PanelViewModel _viewModel;
     private readonly SearchDebouncer _searchDebouncer;
+    private readonly ContainerDiagnostics? _containerDiag; // 真机容器计数证据（CLIPBOARDTOOL_E2E_DIAG 指向输出文件时启用）
     private string _noteDraftInitial = string.Empty; // 进入备注编辑时的原文快照（保存差异判断）
     private bool _docked = true;
     private bool _syncingSelection;
@@ -90,6 +91,12 @@ public partial class PanelWindow : Window
         // Esc 停靠是浏览态全局键（F18，让位模型）：由协调器差量注册后经 HandlePanelKey 到达
         HookCompositionEvents();
         SearchBox.PreviewKeyDown += OnSearchBoxPreviewKeyDown;
+
+        var diagPath = Environment.GetEnvironmentVariable("CLIPBOARDTOOL_E2E_DIAG");
+        if (!string.IsNullOrEmpty(diagPath))
+        {
+            _containerDiag = new ContainerDiagnostics(HistoryList, diagPath);
+        }
     }
 
     public bool IsDocked => _docked;
