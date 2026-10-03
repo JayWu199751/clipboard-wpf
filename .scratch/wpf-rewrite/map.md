@@ -109,3 +109,15 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   真机人工项（存档副本演练、只读恢复）见 [04 票证据记录](issues/04-T03旧档与身份落位.md)。
   待办移交：备注编辑器 UTF-16 上限与存储 Rune 语义对齐归 T05；落盘失败提示归 T05 toast；诊断日志归 T08。
   04 票 Execution 已置 resolved；05（T04）/07（P3）/08（P4）/09（T06）阻塞解除。
+- 2026-10-03：**T04 完成（提交 4e583bb）**：四态键位与搜索落地（191/191 测试全绿，零警告，新增 69 例）。
+  Domain.PanelModes 四态全矩阵（NAV 8 键、搜索态四键让位、IME 组合全停、捕获连呼出键让位）+
+  Domain.Search（多词 AND/五字段/保序/高亮拼回/夹紧边界停住，口径=Invariant 小写后 Ordinal，与 legacy 一致）；
+  Application.PanelCoordinator 状态机移植（五步 enter_input、互斥退出、快照生命周期收敛、
+  try_set 捕获换键）+ NavRepeater（300ms/50ms、GetAsyncKeyState 轮询松键）+ SearchDebouncer（120ms+代次）；
+  HotkeyExecutor 抽 IHotkeyNative（注册失败不上账可测）；Presentation 全接线（呼出重置/搜索井/
+  清除保焦点/空态/正文高亮/占位备注编辑器）。
+  两轴评审修复：焦点快照双源收敛、IME 组合取消兜底 + 备注 Enter ImeProcessed 守卫、
+  NoteSpans 数据侧就绪（卡片渲染随 T05）、ResetQuery 收口、死事件移除。
+  真机人工项（IME 候选、长按手感、搜索实操、切主题联验）见 [05 票证据记录](issues/05-T04四态键位与搜索.md)。
+  05 票 Execution 已置 resolved；06（T05）阻塞解除；09（T06）仍阻塞于 07/08。
+- 下一步前沿：06（T05 置顶备注延迟删除）与 07（P3）/08（P4）/10（P5）试验票均可立即开工。
