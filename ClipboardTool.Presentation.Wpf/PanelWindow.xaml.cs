@@ -464,8 +464,19 @@ public partial class PanelWindow : Window
     {
         if (sender is TextBox box && (bool)e.NewValue)
         {
-            box.Focus();
-            box.SelectAll(); // 已有非空备注进入时全选（F07）
+            // 焦点时序：IsVisibleChanged 在 NoteEditingId 绑定传播时同步触发，早于窗口激活完成
+            // （EnterInput 的 FocusPanel → window.Activate 的 WM_ACTIVATE 异步派发）；立即 Focus
+            // 会被激活处理时的焦点重评估覆盖——排到 Input 优先级，激活尘埃落定后再聚焦。
+            Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Input,
+                () =>
+                {
+                    if (box.IsVisible) // 期间被 Esc/强退收起则放弃
+                    {
+                        box.Focus();
+                        box.SelectAll(); // 已有非空备注进入时全选（F07）
+                    }
+                });
         }
     }
 
