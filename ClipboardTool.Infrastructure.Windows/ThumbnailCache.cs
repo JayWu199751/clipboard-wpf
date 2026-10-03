@@ -130,7 +130,8 @@ public sealed class ThumbnailCache
         }
     }
 
-    /// <summary>全部失效（清空历史/停靠回收不可见项）：含在途。</summary>
+    /// <summary>全部失效（清空历史/停靠回收不可见项）：含在途。宿主的重置/预热由
+    /// Presentation 在停靠/呼出时对已实现容器显式执行（停靠清缓存才能真正释放内存）。</summary>
     public void Clear()
     {
         lock (_gate)
