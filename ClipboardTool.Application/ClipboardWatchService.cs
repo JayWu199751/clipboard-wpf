@@ -160,7 +160,8 @@ public sealed class ClipboardWatchService
         var recorded = change switch
         {
             BaselineChange.Text text => _history.RecordText(text.Value),
-            BaselineChange.Image => false, // 图片侧归 T06（解码与写盘）；届时此处落图片
+            // T06 图片侧：写盘失败返回 false → Confirm(false) 欠账重试（同轮不推进基线）
+            BaselineChange.Image image => _history.RecordImage(image.Png),
             _ => false,
         };
 
