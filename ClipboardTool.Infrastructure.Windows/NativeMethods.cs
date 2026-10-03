@@ -257,7 +257,8 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool KillTimer(IntPtr hwnd, UIntPtr id);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    // PostThreadMessageW 在 user32（不在 kernel32；声明错 DLL 会 EntryPointNotFound）
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern bool PostThreadMessageW(int threadId, uint msg, IntPtr wParam, IntPtr lParam);
 
     public const uint WM_QUIT = 0x0012;

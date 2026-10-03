@@ -390,9 +390,12 @@
                                             <DataTrigger Binding="{Binding Entering}" Value="True">
                                                 <Setter Property="Opacity" Value="0" />
                                                 <DataTrigger.ExitActions>
+                                                    <!-- BeginStoryboard.Storyboard 只接受 Storyboard 类型，动画必须包一层（否则模板解析炸、炸断整条刷新链） -->
                                                     <BeginStoryboard>
-                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                         To="1" Duration="0:0:0.24" />
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                             To="1" Duration="0:0:0.24" />
+                                                        </Storyboard>
                                                     </BeginStoryboard>
                                                 </DataTrigger.ExitActions>
                                             </DataTrigger>
@@ -401,8 +404,10 @@
                                                 <Setter Property="Opacity" Value="0" />
                                                 <DataTrigger.EnterActions>
                                                     <BeginStoryboard>
-                                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                         To="0" Duration="0:0:0.16" />
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                             To="0" Duration="0:0:0.16" />
+                                                        </Storyboard>
                                                     </BeginStoryboard>
                                                 </DataTrigger.EnterActions>
                                             </DataTrigger>
