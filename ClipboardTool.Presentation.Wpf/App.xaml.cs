@@ -4,6 +4,7 @@ using System.Windows.Interop;
 using ClipboardTool.Application;
 using ClipboardTool.Domain.History;
 using ClipboardTool.Domain.Hotkeys;
+using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.PasteChain;
 using ClipboardTool.Infrastructure.Windows;
 
@@ -19,9 +20,11 @@ public partial class App : System.Windows.Application
     private PasteService? _paste;
     private ModeExecutor? _executor;
     private ClipboardMessageSource? _clipboardSource;
+    private PanelCoordinator? _coordinator;
 
-    /// <summary>本次呼出捕获的焦点快照（呼出处理线程上捕获，F13/F14；停靠后消费/失效）。</summary>
-    private FocusTarget? _capturedFocus;
+    /// <summary>焦点快照的真源在协调器（FocusTargetSnapshot）：呼出时补拍、退出输入态复用、
+    /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
+    private FocusTarget? CapturedFocus => _coordinator?.FocusTargetSnapshot;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -30,6 +33,7 @@ public partial class App : System.Windows.Application
         _panel = new PanelWindow();
         _hotkeys = new HotkeyExecutor();
         _executor = new ModeExecutor();
+        _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
 
         // 存档目录 %APPDATA%\ClipboardTool（02-spec/02 §1 契约）：历史 JSON、图片、设置同目录。
         // T03 起接 JsonStore：启动读旧档（坏档先备份），变更自动落盘。
@@ -48,28 +52,32 @@ public partial class App : System.Windows.Application
         _paste = new PasteService(
             _history,
             _watch,
-            capturedFocus: () => _capturedFocus,
+            capturedFocus: () => CapturedFocus,
             restoreAndPaste: target => FocusPasteRestore.RestoreAndPaste(target, paste: true),
             hidePanel: HidePanelAfterPaste,
             reportFocusError: (stage, _) => ShowStatus(PasteChain.FocusErrorMessage(stage)));
 
         // 历史变更（监听线程/链路线程触发）归队 UI 渲染
         _history.EntriesChanged += () => Dispatcher.BeginInvoke(() => _panel?.ReloadEntries(_history!.Entries));
-        _panel.CardPasteRequested += id => RequestPaste(id);
         _panel.ReloadEntries(_history.Entries);
+
+        // —— 面板事件 → 意图/编排（UI 线程封闭；协调器状态与全部效果调用都在该线程） ——
+        _panel.CardPasteRequested += RequestPaste;
+        _panel.SearchActivationRequested += EnterSearch;
+        _panel.CompositionChanged += composing => _coordinator.SetComposing(composing);
+        _panel.NoteEditExitRequested += () => _coordinator.ExitInput(PanelMode.NoteEdit, restoreFocus: true);
 
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
 
-        // 键位计划按面板状态重算（legacy ADR-0006/0010：已生效键集合由执行注册者维护，按模式让位）：
-        // 停靠态 = {呼出键}；呼出浏览态 = {呼出键, Esc 停靠, Enter 复制并粘贴（F11/F18）}。执行者按差量增删。
-        // 注意顺序：面板自身在 SourceInitialized 里先 Dock，DockStateChanged 会在 Attach 之前触发一次，
-        // ApplyKeys 里以 Attached 挡掉；初始计划由 Attach 之后的显式调用落地。
-        _panel.DockStateChanged += docked => ApplyKeys(!docked);
+        // 键位计划由协调器按四态推导差量（F18–F21）：停靠态={呼出键}；呼出浏览态=呼出键+八导航键；
+        // 搜索/备注/捕获按让位矩阵增删。注册动作在宿主 RegisterKey 里按动作分发（呼出/导航）。
+        // 注意顺序：面板自身在 SourceInitialized 里先 Dock，此前协调器尚未给键；初始计划由
+        // Attach 之后的 SetToggleShortcut 落地（停靠态目标集合）。
         _panel.SourceInitialized += (_, _) =>
         {
             _hotkeys.Attach(_panel);
-            ApplyKeys(isSummoned: !_panel.IsDocked);
+            _coordinator.SetToggleShortcut(HotkeyPlan.SummonDefault);
         };
 
         // 临时托盘（F29/F30 雏形）：左键单击抬起呼出，右键菜单；呼出键展示由计划推导（提示=行为）
@@ -83,91 +91,6 @@ public partial class App : System.Windows.Application
             tooltip: "ClipboardTool");
 
         _panel.Show();
-        return;
-
-        // 呼出保存快照（F14）：此刻前台仍是用户原窗口（浏览态面板不激活）
-        void SummonWithSnapshot(PanelWindow panel)
-        {
-            _capturedFocus = FocusPasteRestore.Capture();
-            panel.Summon();
-        }
-
-        void SummonFromTray()
-        {
-            if (_panel is { IsDocked: true } panel)
-            {
-                SummonWithSnapshot(panel);
-            }
-        }
-
-        void ApplyKeys(bool isSummoned)
-        {
-            var plan = isSummoned
-                ? new HotkeyPlan([HotkeyPlan.SummonDefault, HotkeyPlan.BrowseDock, HotkeyPlan.BrowseEnter])
-                : HotkeyPlan.Default;
-            _hotkeys.ApplyPlan(plan.PlanDiff(_hotkeys.EffectiveKeys), OnKeyTriggered);
-        }
-
-        void OnKeyTriggered(HotkeyCombo combo)
-        {
-            if (combo == HotkeyPlan.SummonDefault)
-            {
-                if (_panel is { IsDocked: true })
-                {
-                    // 呼出保存快照（F14）：此刻前台仍是用户原窗口（浏览态面板不激活）
-                    _capturedFocus = FocusPasteRestore.Capture();
-                    _panel.Summon();
-                }
-                else
-                {
-                    _capturedFocus = null;
-                    _panel?.Dock();
-                }
-            }
-            else if (combo == HotkeyPlan.BrowseDock)
-            {
-                _capturedFocus = null;
-                _panel?.Dock();
-            }
-            else if (combo == HotkeyPlan.BrowseEnter)
-            {
-                if (_panel?.SelectedCardId is { } id)
-                {
-                    RequestPaste(id);
-                }
-            }
-        }
-
-        void RequestPaste(string id)
-        {
-            if (_panel is not { IsDocked: false })
-            {
-                return; // 停靠态无粘贴意图
-            }
-            // 链路整体进模式执行线程（本仓库 ADR-0004）：UI 只发具名意图、渲染事实
-            _executor?.Post(() =>
-            {
-                var result = _paste!.Paste(id);
-                Dispatcher.BeginInvoke(() => _panel?.ShowResult(result));
-            });
-        }
-
-        void HidePanelAfterPaste()
-        {
-            // 粘贴已把焦点归还原窗口，隐藏时不再重复恢复（F12）；归队 UI 线程执行停靠
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (_panel is { IsDocked: false } panel)
-                {
-                    panel.Dock();
-                }
-            });
-        }
-
-        void ShowStatus(string message)
-        {
-            Dispatcher.BeginInvoke(() => _panel?.ShowStatus(message));
-        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -177,5 +100,171 @@ public partial class App : System.Windows.Application
         _clipboardSource?.Dispose();
         _executor?.Dispose();
         base.OnExit(e);
+    }
+
+    // —— 呼出/停靠编排 ——
+
+    /// <summary>
+    /// 呼出时序（legacy show_on capture=true）：先拍焦点快照（失败静默）→ 协调器 Show
+    /// （重置搜索/备注态 + 键位差量 + panel:shown 呼出重置）→ 面板几何落地。
+    /// </summary>
+    private void SummonPanel()
+    {
+        if (_panel is not { IsDocked: true })
+        {
+            return;
+        }
+        _coordinator!.EnsureFocusSnapshot();
+        _coordinator.Show();
+        _panel.Summon();
+    }
+
+    private void SummonFromTray()
+    {
+        if (_panel is { IsDocked: true })
+        {
+            SummonPanel();
+        }
+    }
+
+    /// <summary>
+    /// 停靠编排（Esc 停靠 / 呼出键收起 / 粘贴成功收起共用）：先退输入态并注销导航键，
+    /// 再几何落位；restoreFocus=true 时快照由协调器归还并消费。
+    /// </summary>
+    private void DockPanel(bool restoreFocus)
+    {
+        if (_panel is not { IsDocked: false })
+        {
+            return;
+        }
+        _coordinator!.Hide(restoreFocus);
+        _panel.Dock();
+    }
+
+    /// <summary>浏览态 Esc 停靠（宿主事件入口）。</summary>
+    private void DockFromPanel() => DockPanel(restoreFocus: true);
+
+    private void EnterSearch() => _ = _coordinator!.EnterInput(PanelMode.Search);
+
+    /// <summary>热键触发：呼出走停靠编排，导航动作按「真实按下」分发并武装长按连发（F19）。</summary>
+    private void OnKeyAction(PanelKeyAction action)
+    {
+        if (action.Kind == PanelKeyKind.Toggle)
+        {
+            if (_panel is { IsDocked: true })
+            {
+                SummonPanel();
+            }
+            else
+            {
+                DockPanel(restoreFocus: true);
+            }
+        }
+        else
+        {
+            _coordinator?.OnNavPressed(action.NavAction);
+        }
+    }
+
+    private void RequestPaste(string id)
+    {
+        if (_panel is not { IsDocked: false })
+        {
+            return; // 停靠态无粘贴意图
+        }
+        // 链路整体进模式执行线程（本仓库 ADR-0004）：UI 只发具名意图、渲染事实
+        _executor?.Post(() =>
+        {
+            var result = _paste!.Paste(id);
+            Dispatcher.BeginInvoke(() => _panel?.ShowResult(result));
+        });
+    }
+
+    private void HidePanelAfterPaste()
+    {
+        // 粘贴已把焦点归还原窗口，隐藏时不再重复恢复（F12）；归队 UI 线程执行停靠
+        Dispatcher.BeginInvoke(() => DockPanel(restoreFocus: false));
+    }
+
+    private void ShowStatus(string message)
+    {
+        Dispatcher.BeginInvoke(() => _panel?.ShowStatus(message));
+    }
+
+    /// <summary>
+    /// 四态状态机的效果宿主（IPanelModesHost 实现）。全部效果都在 UI 线程上执行
+    /// （协调器线程封闭保证），窗与执行者的调用不再各自投递。
+    /// </summary>
+    private sealed class PanelModesHost(App app) : IPanelModesHost
+    {
+        public bool RegisterKey(HotkeyCombo combo, PanelKeyAction action)
+        {
+            app._hotkeys!.ApplyPlan(
+                new HotkeyDiff([combo], []),
+                _ => app.OnKeyAction(action));
+            return app._hotkeys.EffectiveKeys.Contains(combo);
+        }
+
+        public void UnregisterKey(HotkeyCombo combo) =>
+            app._hotkeys!.ApplyPlan(new HotkeyDiff([], [combo]), _ => { });
+
+        public IReadOnlyCollection<HotkeyCombo> CurrentKeys => app._hotkeys!.EffectiveKeys;
+
+        public bool CanInteract() => app._panel is not null;
+
+        public void FocusPanel()
+        {
+            if (app._panel is not { } panel)
+            {
+                return;
+            }
+            FocusAdapter.SetNoActivate(panel, on: false); // 输入态先清 NOACTIVATE（ADR-0002）
+            FocusAdapter.ActivateForInput(panel);
+        }
+
+        public void BlurPanelIfFocused()
+        {
+            if (app._panel is { } panel)
+            {
+                FocusAdapter.SetNoActivate(panel, on: true); // 浏览态常驻不抢前台
+            }
+        }
+
+        public void SendPanelKey(string action, string? noteEntryId)
+        {
+            if (action == NavAction.Escape.ActionName())
+            {
+                // 浏览态 Esc = 完整停靠流程（退输入态/注销导航键/归还快照/几何落位）
+                app.DockFromPanel();
+                return;
+            }
+            app._panel?.HandlePanelKey(action, noteEntryId);
+        }
+
+        public void SendPanelShown() => app._panel?.HandlePanelShown();
+
+        public void SendCaptureEnd()
+        {
+            // 捕获覆盖层的呈现与收起归 T07；本票捕获态只参与状态机与键位让位
+        }
+
+        public FocusTarget? CaptureFocus() => FocusPasteRestore.Capture();
+
+        public void RestoreFocus(FocusTarget target)
+        {
+            // 输入态退出归还前台（不注入粘贴）；失败按焦点错误回报
+            if (FocusPasteRestore.RestoreAndPaste(target, paste: false) is { } failure)
+            {
+                app.ShowStatus(PasteChain.FocusErrorMessage(failure.Stage));
+            }
+        }
+
+        public void ReportNoFocusTarget() =>
+            app.ShowStatus(PasteChain.FocusErrorMessage(RestoreStage.Restore));
+
+        public bool ValidateNoteTarget(string? targetId) =>
+            targetId is null || app._history!.Find(targetId) is not null;
+
+        public bool IsKeyDown(uint virtualKey) => KeyboardState.IsKeyDown(virtualKey);
     }
 }

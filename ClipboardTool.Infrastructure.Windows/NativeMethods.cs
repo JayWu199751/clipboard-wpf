@@ -153,6 +153,9 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll")]
+    public static extern short GetAsyncKeyState(uint vKey);
+
     [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
     public static extern bool Shell_NotifyIconW(uint message, ref NOTIFYICONDATAW data);
 

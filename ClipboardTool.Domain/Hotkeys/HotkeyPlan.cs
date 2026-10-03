@@ -1,3 +1,5 @@
+using ClipboardTool.Domain.PanelModes;
+
 namespace ClipboardTool.Domain.Hotkeys;
 
 /// <summary>热键修饰键，取值对齐 Win32 MOD_*，注册执行方（Infrastructure）可原样透传。</summary>
@@ -16,7 +18,7 @@ public readonly record struct HotkeyCombo(HotkeyModifiers Modifiers, uint Virtua
 {
     /// <summary>
     /// 键位注册表风格的展示文本（legacy「提示 = 行为」硬约束：chip/菜单一律由计划推导，不写死键名）。
-    /// 修饰键顺序固定 Ctrl+Shift+Alt+Win；主键覆盖 Esc/数字/字母/F1–F24，其余按 VK 码兜底。
+    /// 修饰键顺序固定 Ctrl+Shift+Alt+Win；主键覆盖 Esc/数字/字母/F1–F24 与面板导航键名，其余按 VK 码兜底。
     /// </summary>
     public string DisplayName
     {
@@ -24,7 +26,12 @@ public readonly record struct HotkeyCombo(HotkeyModifiers Modifiers, uint Virtua
         {
             var text = VirtualKey switch
             {
-                0x1B => "Esc",
+                PanelNavKeys.VirtualKeyEscape => "Esc",
+                PanelNavKeys.VirtualKeyReturn => "Enter",
+                PanelNavKeys.VirtualKeySpace => "Space",
+                PanelNavKeys.VirtualKeyUp => "Up",
+                PanelNavKeys.VirtualKeyDown => "Down",
+                PanelNavKeys.VirtualKeyDelete => "Del",
                 >= 0x30 and <= 0x39 => ((char)VirtualKey).ToString(),
                 >= 0x41 and <= 0x5A => ((char)VirtualKey).ToString(),
                 >= 0x70 and <= 0x87 => $"F{VirtualKey - 0x6F}",

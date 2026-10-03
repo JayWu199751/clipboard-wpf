@@ -1,6 +1,7 @@
 <Window x:Class="ClipboardTool.Presentation.Wpf.PanelWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:ClipboardTool.Presentation.Wpf"
         Title="ClipboardTool"
         Width="473" Height="945"
         WindowStyle="None"
@@ -14,6 +15,9 @@
         FontFamily="{StaticResource Font.Sans}">
 
     <Window.Resources>
+        <!-- 备注编辑占位：卡片 Id == 视图模型 NoteEditingId 时显示内联编辑框（完整编辑器规则归 T05） -->
+        <local:EqualityToVisibilityConverter x:Key="EqualityToVisibility" />
+
         <!-- 卡片容器：CornerRadius12、1 DIP 细线（Border.Subtle）、上下12/左右16；hover 仅细边加深。
              Padding/Margin 显式清零 + Stretch：ListBoxItem 默认 Padding=1 会让卡片内缩、
              右细线在 175% DPI 的亚像素相位下被背景吞掉，左右边距不再对称 -->
@@ -68,19 +72,23 @@
                     <RowDefinition Height="30" />
                 </Grid.RowDefinitions>
 
-                <!-- 搜索头：左右 12 DIP，搜索井高 36 胶囊（半径=高一半），图标 15，主题按钮 24/图标 15，键名 chip -->
+                <!-- 搜索头：左右 12 DIP，搜索井高 36 胶囊（半径=高一半），图标 15，清除 16/图标 10，主题按钮 24/图标 15，键名 chip。
+                     浏览态输入框只读（模式在主进程侧，legacy SearchHeader readOnly 同语义），点击井 = 进搜索 -->
                 <Grid Grid.Row="0" Margin="12,0">
-                    <Border Height="36"
+                    <Border x:Name="SearchWell"
+                            Height="36"
                             VerticalAlignment="Center"
                             Background="{DynamicResource Brush.Input}"
                             BorderBrush="{DynamicResource Brush.Border.Strong}"
                             BorderThickness="1"
                             CornerRadius="18"
-                            Padding="12,0,8,0">
+                            Padding="12,0,8,0"
+                            PreviewMouseLeftButtonDown="OnSearchWellPress">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
@@ -104,8 +112,10 @@
                                          Background="Transparent"
                                          BorderThickness="0"
                                          VerticalContentAlignment="Center"
-                                         Padding="0" />
-                                <TextBlock Text="搜索"
+                                         Padding="0"
+                                         IsReadOnly="True"
+                                         TextChanged="OnSearchBoxTextChanged" />
+                                <TextBlock Text="{Binding PlaceholderText}"
                                            FontSize="13.5"
                                            Foreground="{DynamicResource Brush.Text.Tertiary}"
                                            IsHitTestVisible="False">
@@ -122,8 +132,42 @@
                                 </TextBlock>
                             </Grid>
 
+                            <!-- 清除按钮：仅搜索态且有查询时出现；点击清查询并保留输入焦点（F23） -->
+                            <Button x:Name="SearchClear"
+                                    Grid.Column="2"
+                                    Width="16" Height="16"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="Collapsed"
+                                    Focusable="False"
+                                    PreviewMouseLeftButtonDown="OnSearchClearPress">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="ClearBg"
+                                                Background="Transparent"
+                                                CornerRadius="8">
+                                            <Viewbox Width="10" Height="10">
+                                                <Canvas Width="24" Height="24">
+                                                    <Line X1="5" Y1="5" X2="19" Y2="19"
+                                                          Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="2.5"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    <Line X1="19" Y1="5" X2="5" Y2="19"
+                                                          Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="2.5"
+                                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ClearBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+
                             <!-- 主题按钮占位：24 按钮/15 图标（三态切换逻辑归 T07） -->
-                            <Border Grid.Column="2" Width="24" Height="24"
+                            <Border Grid.Column="3" Width="24" Height="24"
                                     CornerRadius="12"
                                     VerticalAlignment="Center">
                                 <Viewbox Width="15" Height="15">
@@ -137,15 +181,15 @@
                                 </Viewbox>
                             </Border>
 
-                            <!-- 键名 chip（搜索键的家，legacy「提示 = 行为」）：T04 键位注册表接入前隐藏 -->
-                            <Border Grid.Column="3" Height="18" MinWidth="18"
+                            <!-- 键名 chip（搜索键的家，legacy「提示 = 行为」）：文本由键位注册表推导，搜索态收起 -->
+                            <Border Grid.Column="4" Height="18" MinWidth="18"
                                     Margin="8,0,0,0"
                                     CornerRadius="5"
                                     Padding="5,0"
                                     Background="{DynamicResource Brush.Input}"
                                     BorderBrush="{DynamicResource Brush.Border.Strong}"
                                     BorderThickness="1,1,1,2"
-                                    Visibility="Collapsed"
+                                    Visibility="{Binding SearchKeyChipVisible}"
                                     VerticalAlignment="Center">
                                 <TextBlock Text="{Binding SearchKeyText}"
                                            FontFamily="{StaticResource Font.Mono}"
@@ -171,6 +215,7 @@
                          BorderThickness="0"
                          Padding="0"
                          PreviewMouseDoubleClick="OnCardDoubleClick"
+                         SelectionChanged="OnListSelectionChanged"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Hidden"
                          VirtualizingPanel.IsVirtualizing="True"
@@ -194,8 +239,9 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>
-                                <!-- 正文最多三行裁剪（原型 line-clamp；完整正文在备注/粘贴里原样，F01） -->
-                                <TextBlock Text="{Binding Body}"
+                                <!-- 正文最多三行裁剪（原型 line-clamp；完整正文在备注/粘贴里原样，F01）；
+                                     命中片段 accent-soft 底色（F23，附加属性渲染高亮 Run） -->
+                                <TextBlock local:HighlightText.Spans="{Binding Spans}"
                                            FontSize="13"
                                            LineHeight="20.15"
                                            LineStackingStrategy="BlockLineHeight"
@@ -203,6 +249,28 @@
                                            TextWrapping="Wrap"
                                            TextTrimming="CharacterEllipsis"
                                            Foreground="{DynamicResource Brush.Text.Primary}" />
+                                <!-- 备注编辑占位：该卡在编辑时 meta 行让位给输入框（完整编辑器归 T05） -->
+                                <TextBox x:Name="NoteBox"
+                                         Text="{Binding Note, Mode=OneWay}"
+                                         FontSize="11.5"
+                                         Foreground="{DynamicResource Brush.Text.Primary}"
+                                         CaretBrush="{DynamicResource Brush.Text.Primary}"
+                                         Background="{DynamicResource Brush.Input}"
+                                         BorderBrush="{DynamicResource Brush.Border.Strong}"
+                                         BorderThickness="1"
+                                         Padding="6,3"
+                                         Margin="0,8,0,0"
+                                         MaxLength="200"
+                                         PreviewKeyDown="OnNoteBoxKeyDown"
+                                         IsVisibleChanged="OnNoteBoxVisibleChanged">
+                                    <TextBox.Visibility>
+                                        <MultiBinding Converter="{StaticResource EqualityToVisibility}">
+                                            <Binding Path="Id" />
+                                            <Binding Path="DataContext.NoteEditingId"
+                                                     RelativeSource="{RelativeSource AncestorType=Window}" />
+                                        </MultiBinding>
+                                    </TextBox.Visibility>
+                                </TextBox>
                                 <TextBlock Text="{Binding Meta}"
                                            Margin="0,8,0,0"
                                            FontFamily="{StaticResource Font.Mono}"
@@ -215,6 +283,16 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
+                <!-- 空态（F23）：无历史与无匹配是两个说法 -->
+                <StackPanel Grid.Row="1"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding EmptyVisible}">
+                    <TextBlock Text="{Binding EmptyText}"
+                               FontSize="13"
+                               Foreground="{DynamicResource Brush.Text.Secondary}" />
+                </StackPanel>
 
                 <!-- 结果提示（toast 雏形，F46 完整形态归 T05）：结果契约 message 单源渲染，空串即隐藏 -->
                 <Border Grid.Row="1"
@@ -232,8 +310,8 @@
                                Foreground="{DynamicResource Brush.Text.Primary}" />
                 </Border>
 
-                <!-- 页脚：左右 16、顶部细分隔线、mono 10.5；左侧计数，右侧六组键位提示（组间 8、组内 4，chip 高 16/字 9.5）
-                     数据源 = 原型注册表（prototype.js footer groups），T04 起由键位注册表按模式生成 -->
+                <!-- 页脚：左右 16、顶部细分隔线、mono 10.5；左侧计数，右侧键位提示（组间 8、组内 4，chip 高 16/字 9.5）
+                     数据源 = 键位注册表按面板模式生成（F45/F20），未生效的键不展示（提示 = 行为） -->
                 <Border Grid.Row="2"
                         BorderThickness="0,1,0,0"
                         BorderBrush="{DynamicResource Brush.Border.Subtle}"
