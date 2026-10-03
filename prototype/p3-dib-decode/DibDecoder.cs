@@ -213,12 +213,19 @@ public static class DibDecoder
             var frame = decoder.Frames.FirstOrDefault();
             if (frame is null)
                 return null;
-            // 统一转 BGRA32 再翻成 RGBA，避免源 PNG 色彩类型差异
-            var converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(
-                frame, System.Windows.Media.PixelFormats.Pbgra32, null, 0);
-            int w = converted.PixelWidth, h = converted.PixelHeight;
+            // 统一转 Bgra32（非预乘）：Pbgra32 会预乘 alpha，半透明像素 RGB 有不可逆精度损失
+            System.Windows.Media.Imaging.FormatConvertedBitmap? converted;
+            if (frame.Format == System.Windows.Media.PixelFormats.Bgra32)
+                converted = null;
+            else
+                converted = new System.Windows.Media.Imaging.FormatConvertedBitmap(
+                    frame, System.Windows.Media.PixelFormats.Bgra32, null, 0);
+            int w = frame.PixelWidth, h = frame.PixelHeight;
             var bgra = new byte[w * h * 4];
-            converted.CopyPixels(bgra, w * 4, 0);
+            if (converted is null)
+                frame.CopyPixels(bgra, w * 4, 0);
+            else
+                converted.CopyPixels(bgra, w * 4, 0);
             var rgba = new byte[bgra.Length];
             for (int i = 0; i < bgra.Length; i += 4)
             {
