@@ -44,6 +44,7 @@ public partial class PanelWindow : Window
     private readonly ScreenMetricsProvider _screens = new();
     private readonly PanelViewModel _viewModel;
     private readonly SearchDebouncer _searchDebouncer;
+    private readonly ContainerDiagnostics? _containerDiag; // 真机容器计数证据（CLIPBOARDTOOL_E2E_DIAG 指向输出文件时启用）
     private string _noteDraftInitial = string.Empty; // 进入备注编辑时的原文快照（保存差异判断）
     private bool _docked = true;
     private bool _syncingSelection;
@@ -90,9 +91,18 @@ public partial class PanelWindow : Window
         // Esc 停靠是浏览态全局键（F18，让位模型）：由协调器差量注册后经 HandlePanelKey 到达
         HookCompositionEvents();
         SearchBox.PreviewKeyDown += OnSearchBoxPreviewKeyDown;
+
+        var diagPath = Environment.GetEnvironmentVariable("CLIPBOARDTOOL_E2E_DIAG");
+        if (!string.IsNullOrEmpty(diagPath))
+        {
+            _containerDiag = new ContainerDiagnostics(HistoryList, diagPath);
+        }
     }
 
     public bool IsDocked => _docked;
+
+    /// <summary>注入共享缩略图缓存（T06，App 构造后调用；仅图片卡使用，文字卡零开销）。</summary>
+    public void SetThumbnailCache(ThumbnailCache cache) => _viewModel.SetThumbnailCache(cache);
 
     private IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
 
@@ -164,6 +174,7 @@ public partial class PanelWindow : Window
             && WindowPlacer.PlaceSummonDip(Hwnd, metrics, position, size.Width, size.Height);
 
         _docked = false;
+        ForEachThumbnailHost(host => host.Request()); // 呼出预热已实现容器（停靠时已回收）
     }
 
     /// <summary>停靠：屏外驻留（工作区右缘外 20 DIP、y=工作区顶），窗口不销毁。</summary>
@@ -177,6 +188,37 @@ public partial class PanelWindow : Window
         WindowPlacer.PlaceDip(Hwnd, screen, position, widthDip, heightDip);
 
         _docked = true;
+        // 停靠回收不可见项（T06）：清空缩略图缓存 + 释放已实现容器的位图引用；
+        // 迟到的解码结果被缓存/宿主的代次与失效规则丢弃
+        _viewModel.Thumbnails?.Clear();
+        ForEachThumbnailHost(host => host.Reset());
+    }
+
+    /// <summary>对列表中已实现（realized）容器的缩略图宿主逐个执行操作（虚拟化：未实现的不可见，无需处理）。</summary>
+    private void ForEachThumbnailHost(Action<ThumbnailHost> action)
+    {
+        var generator = HistoryList.ItemContainerGenerator;
+        for (var i = 0; i < HistoryList.Items.Count; i++)
+        {
+            if (generator.ContainerFromIndex(i) is ListBoxItem container)
+            {
+                WalkThumbnailHosts(container, action);
+            }
+        }
+    }
+
+    private static void WalkThumbnailHosts(DependencyObject node, Action<ThumbnailHost> action)
+    {
+        if (node is ThumbnailHost host)
+        {
+            action(host);
+            return;
+        }
+        var count = VisualTreeHelper.GetChildrenCount(node);
+        for (var i = 0; i < count; i++)
+        {
+            WalkThumbnailHosts(VisualTreeHelper.GetChild(node, i), action);
+        }
     }
 
     // —— 协调器 panel:key 事件的渲染侧（动作名协议见 Domain.PanelModes） ——

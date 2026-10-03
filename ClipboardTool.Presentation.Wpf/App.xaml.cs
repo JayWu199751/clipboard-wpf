@@ -81,6 +81,13 @@ public partial class App : System.Windows.Application
         _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
         Log("核心对象构造完成");
 
+        // 共享缩略图缓存（T06）：解码 Task.Run 后台线程（结果 Freeze）、回调归队 UI；
+        // 双上限（32 张 / 24 MiB）、按 Id 记忆化、失效与代次规则在缓存内部
+        _panel.SetThumbnailCache(new ThumbnailCache(
+            WpfThumbnailDecoder.Decode,
+            work => Task.Run(work),
+            action => Dispatcher.BeginInvoke(action)));
+
         // 存档目录 %APPDATA%\ClipboardTool（02-spec/02 §1 契约）：历史 JSON、图片、设置同目录。
         // T03 起接 JsonStore：启动读旧档（坏档先备份），变更自动落盘。
         var dataDir = Path.Combine(
