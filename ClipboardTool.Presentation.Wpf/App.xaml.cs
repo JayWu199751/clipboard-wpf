@@ -63,23 +63,33 @@ public partial class App : System.Windows.Application
         _settings = _settingsStore.ReadSettings();
 
         // —— 静默启动通道（F36）：提权生产构建在启动尾部把计划任务事实收敛到持久化意图 ——
-        _isElevated = new System.Security.Principal.WindowsPrincipal(
-            System.Security.Principal.WindowsIdentity.GetCurrent())
+        var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        _isElevated = new System.Security.Principal.WindowsPrincipal(identity)
             .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
         _startup = new StartupService(
             new ScheduledTaskRegistrar(),
             ScheduledTaskBuilder.DefaultTaskName,
             Environment.ProcessPath ?? string.Empty);
 
-        var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? string.Empty;
+        var sid = identity.User?.Value ?? string.Empty;
         var summonPipe = $"ClipboardTool-{sid}-summon";
-        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");        if (!gate.TryAcquire())
+        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");
+        if (!gate.TryAcquire())
         {
-            // 经线程池等待（不直接 GetResult）：本方法跑在 UI 线程的 Dispatcher 上下文上，
-            // 直接同步阻塞会让 await 续体排队回一个已被阻塞的 Dispatcher → 经典死锁。
-            var delivered = Task.Run(() => SummonClient.SummonAsync(summonPipe, timeoutMs: 5000))
-                .GetAwaiter().GetResult();
-            Shutdown(delivered ? 0 : 1);
+            // 第二实例的职责就是把呼出请求投进 pipe 后退出：投递异步进行（不阻塞 UI 线程），
+            // 退出时机挂在投递完成回调上——投递完成前退出会让 pipe 丢信（既有语义）。
+            // legacy 5s 口径用超时取消表达（SummonAsync 内部有限等待）；异常与超时同样按
+            // 「本次未呼出」收场（退出码 1）。
+            _ = Task.Run(() => SummonClient.SummonAsync(summonPipe, timeoutMs: 5000))
+                .ContinueWith(t =>
+                {
+                    var delivered = t.Status == TaskStatus.RanToCompletion && t.Result;
+                    if (t.IsFaulted)
+                    {
+                        _ = t.Exception; // 观察异常避免未观察 Task 异常；按未送达收场
+                    }
+                    Shutdown(delivered ? 0 : 1);
+                }, TaskScheduler.FromCurrentSynchronizationContext());
             return;
         }
         var summonServer = new SummonServer(summonPipe);
@@ -99,7 +109,7 @@ public partial class App : System.Windows.Application
         _theme.MenuChanged += () => Dispatcher.BeginInvoke(RebuildTrayMenu);
         watcher.ThemeChanged += () => Dispatcher.BeginInvoke(_theme.RefreshFromSystem);
         watcher.Start();
-        ApplyPanelTheme(PanelIsDark(_settings.Theme)); // 启动即落当前有效皮肤（不落盘不发事件链）
+        ApplyPanelTheme(_theme!.IsPanelDark); // 启动即落当前有效皮肤（ThemeService 单一权威，不落盘不发事件链）
 
         // 共享缩略图缓存（T06）：解码 Task.Run 后台线程（结果 Freeze）、回调归队 UI；
         // 双上限（32 张 / 24 MiB）、按 Id 记忆化、失效与代次规则在缓存内部
@@ -182,10 +192,10 @@ public partial class App : System.Windows.Application
         //    主题/缩放变化经 TrayIconSync 同键去重后落地。 ——
         _tray = new TrayIconHost("ClipboardTool");
         _tray.SummonRequested += SummonFromTray;
-        _tray.PointerEntered += () => Dispatcher.BeginInvoke(() => SyncTrayIcon(TrayIsDark(_settings.Theme)));
+        _tray.PointerEntered += () => Dispatcher.BeginInvoke(() => SyncTrayIcon(_theme!.IsTrayDark));
         _tray.MenuItemSelected += id => Dispatcher.BeginInvoke(() => OnTrayMenu(id));
         RebuildTrayMenu();
-        SyncTrayIcon(TrayIsDark(_settings.Theme));
+        SyncTrayIcon(_theme!.IsTrayDark);
 
         // 呼出键没注册上=整会话热键哑；按 5s/20s 现读设置重试两遍（差量幂等，F32）
         var retry = new SummonKeyRetry(
@@ -198,7 +208,7 @@ public partial class App : System.Windows.Application
         summonServer.Start();
 
         // 启动收敛放尾部：一次 schtasks 查询（无动作时不注册），结果只记诊断不阻断启动
-        var convergence = _startup.ConvergeOnStartup(IsDevelopmentBuild, _isElevated, _settings.AutoStart);
+        _ = _startup.ConvergeOnStartup(IsDevelopmentBuild, _isElevated, _settings.AutoStart);
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -229,6 +239,26 @@ public partial class App : System.Windows.Application
         RebuildTrayMenu();
     }
 
+    /// <summary>
+    /// 「落盘成功才推进」的设置变更单点（UpdateSettings 的守卫变体）：失败不推进内存快照。
+    /// 主题偏好走此口（ThemeService 语义：落盘失败偏好不推进不发事件）；菜单重建由
+    /// SetTheme 的 MenuChanged 事件负责，此处不重复。除此之外不再有直改 _settings 的旁路。
+    /// </summary>
+    private bool UpdateSettingsPersistFirst(Func<AppSettings, AppSettings> change)
+    {
+        var next = change(_settings);
+        try
+        {
+            _settingsStore!.SaveSettings(next);
+        }
+        catch (Exception)
+        {
+            return false; // 原子写失败=原件不动，偏好保持旧值
+        }
+        _settings = next;
+        return true;
+    }
+
     /// <summary>当前呼出键（设置串按码表解码；解析不了回落默认键——坏档不哑热键）。</summary>
     private HotkeyCombo ParsedToggle() =>
         AccelCodec.Parse(_settings.Shortcut) ?? HotkeyPlan.SummonDefault;
@@ -252,23 +282,7 @@ public partial class App : System.Windows.Application
         }
     }
 
-    // —— 主题编排（F26–F28） ——
-
-    /// <summary>面板内容皮肤：三态 → 有效明暗（跟随系统看应用模式键）→ 切资源字典。</summary>
-    private bool PanelIsDark(ThemeKind theme) => theme switch
-    {
-        ThemeKind.Light => false,
-        ThemeKind.Dark => true,
-        _ => _theme?.IsPanelDark ?? false,
-    };
-
-    /// <summary>托盘图标明暗：跟随系统看任务栏键（与面板判定互不干扰）。</summary>
-    private bool TrayIsDark(ThemeKind theme) => theme switch
-    {
-        ThemeKind.Light => false,
-        ThemeKind.Dark => true,
-        _ => _theme?.IsTrayDark ?? false,
-    };
+    // —— 主题编排（F26–F28）：明暗判定单一权威在 ThemeService（IsPanelDark/IsTrayDark） ——
 
     private void ApplyPanelTheme(bool dark)
     {
@@ -321,9 +335,8 @@ public partial class App : System.Windows.Application
                 ToggleAutoStart();
                 break;
             case "clear-history":
-                // 托盘立即执行（F33）：先取消删除流程计时防误报，再清库存（含置顶/PNG 联动）；无确认窗
+                // 清空历史编排（F33）：次序收口在 PendingDeletionService.ClearAll（F25 排空 + 清库存）
                 _deletion!.ClearAll();
-                _history!.Clear();
                 break;
             case "quit":
                 Shutdown();
@@ -618,22 +631,11 @@ public partial class App : System.Windows.Application
         public bool IsKeyDown(uint virtualKey) => KeyboardState.IsKeyDown(virtualKey);
     }
 
-    /// <summary>主题落盘端口（ThemeService.IPersistPort）：落盘成功才推进内存快照；
-    /// 落盘失败偏好不推进不发事件（会话内可重试）。菜单重建由 SetTheme 的 MenuChanged 负责。</summary>
+    /// <summary>主题落盘端口（ThemeService.IPersistPort）：走设置单点 PersistFirst 变体——
+    /// 落盘成功才推进内存快照（失败=偏好不推进不发事件，会话内可重试）。</summary>
     private sealed class ThemePersistPort(App app) : ThemeService.IPersistPort
     {
-        public bool SaveTheme(ThemeKind theme)
-        {
-            try
-            {
-                app._settingsStore!.SaveSettings(app._settings with { Theme = theme });
-            }
-            catch (Exception)
-            {
-                return false; // 原子写失败=原件不动，主题保持旧值
-            }
-            app._settings = app._settings with { Theme = theme };
-            return true;
-        }
+        public bool SaveTheme(ThemeKind theme) =>
+            app.UpdateSettingsPersistFirst(s => s with { Theme = theme });
     }
 }
