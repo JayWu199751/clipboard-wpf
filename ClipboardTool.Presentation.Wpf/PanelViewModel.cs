@@ -301,7 +301,10 @@ public sealed record CardViewModel(
 }
 
 /// <summary>toast 一条（F46）：成功绿勾/错误红叉 + 消息 + 次级 dim + 可选动作（撤销）。
-/// Entering 支撑入场动画（240ms）：入栈时 true，窗口在布局就绪后置 false 触发淡入。</summary>
+/// Entering 支撑入场动画（240ms）：入栈时 true，窗口在布局就绪后置 false 触发淡入。
+/// F48：Announcement 是 Narrator 播报文本（错误前缀/动作/dim 并入一句，锚在 Message
+/// 文本块的 AutomationProperties.Name 上）；Animated=false（系统减少动态）时 XAML
+/// 不播入场/离场过渡，直接落地/消失。</summary>
 public sealed class ToastViewModel : INotifyPropertyChanged
 {
     private bool _entering = true;
@@ -316,6 +319,12 @@ public sealed class ToastViewModel : INotifyPropertyChanged
     public string? ActionLabel { get; init; }
 
     public Action? OnAction { get; init; }
+
+    /// <summary>Narrator 播报文本（F48）；由 ToastAnnouncement 在入栈时拼定。</summary>
+    public string Announcement { get; init; } = string.Empty;
+
+    /// <summary>是否播放过渡动画（F48：系统减少动态时为 false，入栈时按策略赋值）。</summary>
+    public bool Animated { get; init; } = true;
 
     /// <summary>入场中（入栈后由窗口置 false，触发 240ms 淡入）。</summary>
     public bool Entering

@@ -605,6 +605,9 @@ public partial class PanelWindow : Window
             IsError = isError,
             ActionLabel = actionLabel,
             OnAction = onAction,
+            // F48：播报文本与动画开关在入栈时一次定死（Announcement 含错误前缀/动作/dim）
+            Announcement = ToastAnnouncement.Build(message, isError, actionLabel, dim),
+            Animated = AccessibilityMotion.PlayAnimations,
         };
         _viewModel.Toasts.Add(toast);
         var life = actionLabel is not null ? PendingDeletionService.UndoToastMs : ToastLifeMs;
