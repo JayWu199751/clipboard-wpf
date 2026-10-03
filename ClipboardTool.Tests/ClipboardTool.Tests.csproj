@@ -14,6 +14,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClipboardTool.Domain\ClipboardTool.Domain.csproj" />
+    <ProjectReference Include="..\ClipboardTool.Application\ClipboardTool.Application.csproj" />
+    <ProjectReference Include="..\ClipboardTool.Infrastructure.Windows\ClipboardTool.Infrastructure.Windows.csproj" />
+  </ItemGroup>
+
+  <!-- 样例存档与真实测试 PNG（T03 旧档往返；imagePath 占位符在测试中替换为真实路径） -->
+  <ItemGroup>
+    <None Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

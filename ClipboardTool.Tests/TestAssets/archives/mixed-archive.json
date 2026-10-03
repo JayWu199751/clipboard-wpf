@@ -1,0 +1,55 @@
+[
+  {
+    "id": "e2c9ad03-84bf-47b1-911a-0542b0f3a301",
+    "type": "text",
+    "text": "完整正文\n保留换行与空格",
+    "createdAt": 1790992800000,
+    "sourceApp": {
+      "exePath": "C:\\Windows\\System32\\notepad.exe",
+      "appName": "notepad",
+      "windowTitle": "示例 - 记事本",
+      "iconDataUrl": null
+    },
+    "pinned": false,
+    "pinnedAt": 0,
+    "note": "示例备注"
+  },
+  {
+    "id": "1cc08a9e-8ec1-4f53-a6c2-a50a72eb5b20",
+    "type": "image",
+    "imagePath": "__SAMPLE_PNG__",
+    "createdAt": 1790992810000,
+    "sourceApp": null,
+    "pinned": true,
+    "pinnedAt": 1790992820000,
+    "note": ""
+  },
+  {
+    "id": "",
+    "type": "text",
+    "text": "空 id 应被跳过",
+    "createdAt": 1790992830000,
+    "sourceApp": null,
+    "pinned": false,
+    "pinnedAt": 0,
+    "note": ""
+  },
+  {
+    "id": "0f0e0d0c-1111-2222-3333-444455556666",
+    "type": "sticker",
+    "createdAt": 1790992840000,
+    "sourceApp": null,
+    "pinned": false,
+    "pinnedAt": 0,
+    "note": ""
+  },
+  {
+    "id": "0a0b0c0d-1111-2222-3333-444455556667",
+    "type": "text",
+    "createdAt": 1790992850000,
+    "sourceApp": null,
+    "pinned": false,
+    "pinnedAt": 0,
+    "note": ""
+  }
+]

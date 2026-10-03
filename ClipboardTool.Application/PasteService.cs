@@ -1,3 +1,4 @@
+using ClipboardTool.Domain.History;
 using ClipboardTool.Domain.PasteChain;
 
 namespace ClipboardTool.Application;
@@ -38,7 +39,9 @@ public sealed class PasteService : IPastePort
     public CopyContent? ContentOf(string id)
     {
         var entry = _history.Find(id);
-        return entry is null ? null : new CopyContent.Text(entry.Text);
+        // 文字条目取正文；图片条目的位图写入归 T06（届时此处返回 CopyContent.Image）。
+        // 图片条目当前按「内容不可用」处理，走统一的 EntryUnavailable 文案。
+        return entry is { Type: EntryKind.Text, Text: { } text } ? new CopyContent.Text(text) : null;
     }
 
     public bool WriteClipboard(CopyContent content) => content switch

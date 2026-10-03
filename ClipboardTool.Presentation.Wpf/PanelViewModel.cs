@@ -49,13 +49,14 @@ public sealed class PanelViewModel : INotifyPropertyChanged
         new("Esc", "隐藏"),
     ];
 
-    /// <summary>整表重载：全量快照替换（监听线程的变更事件已由订阅方归队 UI）。</summary>
+    /// <summary>整表重载：全量快照替换（监听线程的变更事件已由订阅方归队 UI）。
+    /// 图片条目正文为空（图卡渲染归 T06）。</summary>
     public void Reload(IReadOnlyList<HistoryEntry> entries)
     {
         Items.Clear();
         foreach (var entry in entries)
         {
-            Items.Add(new CardViewModel(entry.Id, entry.Text, FormatMeta(entry)));
+            Items.Add(new CardViewModel(entry.Id, entry.Text ?? string.Empty, FormatMeta(entry)));
         }
         OnPropertyChanged(nameof(CountText));
     }

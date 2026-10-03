@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Interop;
 using ClipboardTool.Application;
@@ -30,10 +31,18 @@ public partial class App : System.Windows.Application
         _hotkeys = new HotkeyExecutor();
         _executor = new ModeExecutor();
 
+        // 存档目录 %APPDATA%\ClipboardTool（02-spec/02 §1 契约）：历史 JSON、图片、设置同目录。
+        // T03 起接 JsonStore：启动读旧档（坏档先备份），变更自动落盘。
+        var dataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardTool");
         var store = new HistoryStore(
-            () => Guid.NewGuid().ToString("N"),
+            HistoryStore.DefaultMaxHistory,
+            new ImageFileStore(dataDir),
+            // 新 id UUID 带连字符形状（与 legacy uuid::Uuid::new_v4、旧档样例一致，02-spec/02 §1）
+            () => Guid.NewGuid().ToString(),
             () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        _history = new HistoryService(store);
+        _history = new HistoryService(store, new JsonStore(dataDir));
+        _history.LoadFromStorage();
         _watch = new ClipboardWatchService(
             new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter());
         _paste = new PasteService(

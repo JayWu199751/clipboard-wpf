@@ -7,7 +7,8 @@ namespace ClipboardTool.Tests.HistoryRules;
 public sealed class HistoryStoreTests
 {
     private static HistoryStore CreateStore() =>
-        new(newId: () => Guid.NewGuid().ToString("N"), nowMs: () => 1_700_000_000_000);
+        new(HistoryStore.DefaultMaxHistory, new FakeImageFiles(),
+            newId: () => Guid.NewGuid().ToString("N"), nowMs: () => 1_700_000_000_000);
 
     [Fact]
     public void 空字符串不生成条目()
