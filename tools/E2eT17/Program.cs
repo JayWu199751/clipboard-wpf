@@ -119,6 +119,26 @@ try
     Native.MouseClick(ClickX, ClickY);
     Check(WaitPanelDocked(app, 3000), "判据C：搜索态点击面板外 → 面板停靠");
 
+    // ---------- 判据D：第二实例异步投递（Standards 1 冒烟：不阻塞、投递后自行退出） ----------
+    var second = Process.Start(new ProcessStartInfo(FindAppExe()) { UseShellExecute = false })!;
+    var exited = second.WaitForExit(12000);
+    Check(exited && second.ExitCode == 0,
+        exited
+            ? second.ExitCode == 0
+                ? "判据D：第二实例投递后自行退出（exit 0，异步投递不阻塞）"
+                : $"判据D：第二实例退出 exit={second.ExitCode}（1=投递失败/超时）"
+            : "判据D：第二实例 12s 未退出（疑似阻塞，Standards 1 回归）");
+    if (exited && second.ExitCode == 0)
+    {
+        // 投递成功 → 原实例面板应已呼出（F34 双实例呼出语义的行为侧证据）
+        Check(WaitUntil(() => IsPanelOnScreen(app), 3000),
+            "判据D：第二实例投递 → 原实例面板呼出");
+    }
+    if (IsPanelOnScreen(app))
+    {
+        ToggleSummon(app, expectShown: false);
+    }
+
     // ---------- 收尾 ----------
     if (IsPanelOnScreen(app))
     {
