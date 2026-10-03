@@ -81,7 +81,6 @@ internal static class Win32
     [DllImport("user32.dll")] public static extern IntPtr GetAncestor(IntPtr hwnd, uint flags);
     [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
-    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr hwnd, int cmd);
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
@@ -103,10 +102,8 @@ internal static class Win32
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern ushort RegisterClassExW(ref WNDCLASSEX cls);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr CreateWindowExW(uint exStyle, string cls, string? title, uint style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr CreateWindowExW(uint exStyle, string cls, uint nullTitle, uint style, int x, int y, int w, int h, IntPtr parent, IntPtr menu, IntPtr inst, IntPtr param);
-    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc proc, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr hwnd, EnumProc proc, IntPtr lParam);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hwnd, StringBuilder sb, int max);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr hwnd, StringBuilder sb, int max);
     [DllImport("kernel32.dll")] public static extern IntPtr GetModuleHandleW(string? name);
     [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
     [DllImport("kernel32.dll")] public static extern IntPtr GlobalAlloc(uint flags, UIntPtr bytes);
@@ -127,25 +124,32 @@ internal static class Win32
 
     public delegate bool EnumProc(IntPtr hwnd, IntPtr lParam);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SendMessageTimeoutW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", SetLastError = true)]
+    private static extern IntPtr SendMessageTimeoutPtrW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageTimeoutW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr SendMessageTimeoutStrW(IntPtr hwnd, uint msg, IntPtr wParam, StringBuilder text, uint flags, uint timeout, out IntPtr result);
 
     [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
     private static extern IntPtr SendMessageStrW(IntPtr hwnd, uint msg, IntPtr wParam, string text);
 
-    [DllImport("user32.dll", EntryPoint = "SendMessageW", CharSet = CharSet.Unicode)]
-    private static extern IntPtr SendMessageStrW(IntPtr hwnd, uint msg, IntPtr wParam, StringBuilder text);
-
     [DllImport("user32.dll", EntryPoint = "SendMessageW")]
     private static extern IntPtr SendMessagePtrW(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 
-    // WM_GETTEXT/WM_GETTEXTLENGTH 跨进程由系统封送；SMTO_ABORTIFHUNG 防目标挂死拖住调用方
+    // WM_GETTEXT/WM_GETTEXTLENGTH 跨进程由系统封送；SMTO_ABORTIFHUNG 防目标挂死拖住调用方，
+    // 超时/失败返回 null（读不到 ≠ 空，调用方据此区分）
     public static string? GetWindowText(IntPtr hwnd)
     {
-        int len = (int)SendMessagePtrW(hwnd, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero);
-        if (len <= 0) return "";
+        if (SendMessageTimeoutPtrW(hwnd, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero,
+                SMTO_ABORTIFHUNG, 2000, out var lenResult) == IntPtr.Zero) return null;
+        int len = unchecked((int)lenResult);
+        if (len < 0) return null;
+        if (len == 0) return "";
         var sb = new StringBuilder(len + 1);
-        SendMessageStrW(hwnd, WM_GETTEXT, (IntPtr)(len + 1), sb);
+        if (SendMessageTimeoutStrW(hwnd, WM_GETTEXT, (IntPtr)(len + 1), sb,
+                SMTO_ABORTIFHUNG, 2000, out _) == IntPtr.Zero) return null;
         return sb.ToString();
     }
 

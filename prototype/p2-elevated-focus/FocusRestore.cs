@@ -33,7 +33,11 @@ public static class FocusRestore
 
     public static RunStats LastRun = new();
 
-    static void Pump(int ms) => PumpHook?.Invoke(ms);
+    static void Pump(int ms)
+    {
+        if (PumpHook != null) PumpHook(ms);
+        else Thread.Sleep(ms); // 专用线程模型（正式 FocusAdapter）下的等价等待
+    }
 
     public static FocusTarget? Snapshot()
     {
@@ -89,6 +93,52 @@ public static class FocusRestore
         return WaitForForeground(hwnd, 48);
     }
 
+    /// <summary>
+    /// 激活级联（RestoreTarget 与无快照前置激活共用的唯一实现）：
+    /// ASFW 授权 → 无害 Alt 取输入权 → SwitchToThisWindow → ShowWindowAsync+SetWindowPos，每步回读验证。
+    /// </summary>
+    static bool CascadeActivate(IntPtr hwnd)
+    {
+        Win32.AllowSetForegroundWindow(Win32.ASFW_ANY);
+        bool ok = TryActivate(hwnd);
+        if (!ok)
+        {
+            SendAlt();
+            LastRun.AltSent = true;
+            ok = TryActivate(hwnd);
+        }
+        if (!ok)
+        {
+            Win32.SwitchToThisWindow(hwnd, true);
+            ok = TryActivate(hwnd);
+        }
+        if (!ok)
+        {
+            Win32.ShowWindowAsync(hwnd, Win32.SW_RESTORE);
+            Win32.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
+                Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_SHOWWINDOW);
+            ok = TryActivate(hwnd);
+        }
+        return ok;
+    }
+
+    /// <summary>无快照时的前置激活（探针建立前置状态用）：最小化先恢复 + 级联 + 对称解绑。</summary>
+    public static bool ActivateWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        if (Win32.IsIconic(hwnd)) Win32.ShowWindowAsync(hwnd, Win32.SW_RESTORE);
+
+        uint targetThread = Win32.GetWindowThreadProcessId(hwnd, out _);
+        uint currentThread = Win32.GetCurrentThreadId();
+        bool attached = targetThread != 0 && Win32.AttachThreadInput(currentThread, targetThread, true);
+        if (attached) LastRun.AttachCalls++;
+
+        bool ok = CascadeActivate(hwnd);
+
+        if (attached) Win32.AttachThreadInput(currentThread, targetThread, false); // 对称解绑
+        return ok;
+    }
+
     static bool RestoreTarget(FocusTarget target)
     {
         var hwnd = (IntPtr)target.Hwnd;
@@ -117,28 +167,8 @@ public static class FocusRestore
         bool attached = targetThread != 0 && Win32.AttachThreadInput(currentThread, targetThread, true);
         if (attached) LastRun.AttachCalls++;
 
-        // 面板握有前台激活权时 Windows 会拒绝直接 SetForegroundWindow：
-        // 先 ASFW 授权，再以一次无害 Alt 取得输入权，然后逐级重试（每步回读验证，成功即刻返回）
-        Win32.AllowSetForegroundWindow(Win32.ASFW_ANY);
-        bool foregroundSet = TryActivate(hwnd);
-        if (!foregroundSet)
-        {
-            SendAlt();
-            LastRun.AltSent = true;
-            foregroundSet = TryActivate(hwnd);
-        }
-        if (!foregroundSet)
-        {
-            Win32.SwitchToThisWindow(hwnd, true);
-            foregroundSet = TryActivate(hwnd);
-        }
-        if (!foregroundSet)
-        {
-            Win32.ShowWindowAsync(hwnd, Win32.SW_RESTORE);
-            Win32.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_SHOWWINDOW);
-            foregroundSet = TryActivate(hwnd);
-        }
+        // 面板握有前台激活权时 Windows 会拒绝直接 SetForegroundWindow：走级联，每步回读验证
+        bool foregroundSet = CascadeActivate(hwnd);
         Win32.SetFocus(focusHwnd != IntPtr.Zero && Win32.IsWindow(focusHwnd) ? focusHwnd : hwnd);
 
         if (attached) Win32.AttachThreadInput(currentThread, targetThread, false); // 对称解绑

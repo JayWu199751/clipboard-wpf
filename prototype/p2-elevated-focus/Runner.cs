@@ -384,27 +384,8 @@ internal static class Runner
         return new TargetInfo(name, (IntPtr)hwnd, (IntPtr)edit, (uint)pid, (uint)tid, kind, "");
     }
 
-    // 与 FocusRestore 恢复级联同型的激活助手，供建立前置状态（无快照时激活任意窗口）
-    internal static bool ActivateWindow(IntPtr hwnd)
-    {
-        if (Win32.IsIconic(hwnd)) Win32.ShowWindowAsync(hwnd, Win32.SW_RESTORE);
-        uint targetThread = Win32.GetWindowThreadProcessId(hwnd, out _);
-        uint currentThread = Win32.GetCurrentThreadId();
-        bool attached = targetThread != 0 && Win32.AttachThreadInput(currentThread, targetThread, true);
-        Win32.AllowSetForegroundWindow(Win32.ASFW_ANY);
-        bool ok = FocusRestore.TryActivate(hwnd);
-        if (!ok) { FocusRestore.SendAlt(); ok = FocusRestore.TryActivate(hwnd); }
-        if (!ok) { Win32.SwitchToThisWindow(hwnd, true); ok = FocusRestore.TryActivate(hwnd); }
-        if (!ok)
-        {
-            Win32.ShowWindowAsync(hwnd, Win32.SW_RESTORE);
-            Win32.SetWindowPos(hwnd, IntPtr.Zero, 0, 0, 0, 0,
-                Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_SHOWWINDOW);
-            ok = FocusRestore.TryActivate(hwnd);
-        }
-        if (attached) Win32.AttachThreadInput(currentThread, targetThread, false);
-        return ok;
-    }
+    // 前置激活统一走 FocusRestore.ActivateWindow（级联唯一实现）；LastRun 计数随 RestoreAndPaste 重置，不受污染
+    internal static bool ActivateWindow(IntPtr hwnd) => FocusRestore.ActivateWindow(hwnd);
 
     internal static bool WaitTargetText(TargetInfo t, string expected, int timeoutMs)
     {

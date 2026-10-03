@@ -48,6 +48,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File run-runner.ps1 -Exe "$EXE"
 明细见自动报告：`bin/Release/net10.0-windows/p2-report.md`（门禁 C1–C5 + 补充 S1/S2）与
 `p2-negative-report.md`（负控）。
 
+说明：工单判据 1/2 字面为「记事本」，门禁 C1/C2 以自建探针靶窗（多行 EDIT，标准系统控件）作确定性回读，
+真实记事本（WinUI 版，编辑器 `RichEditD2DPT`）以 S1/S2 作为直接证据——连续两轮普通与提权记事本均
+恢复+注入+回读全过，与门禁结论一致。
+
+## 参考
+
+- legacy 解码/注入实现的原始上下文：`docs/wpf-rewrite-kit/04-reference/legacy/tauri/src-tauri/src/focus_paste.rs`
+- UIPI 调研（RegisterHotKey/SendInput/提权工具生态，官方文档原文核对）：
+  `docs/wpf-rewrite-kit/04-reference/legacy/docs/UIPI-research.md`
+- SendInput 官方语义（UIPI 阻断不反映在返回值/GetLastError）：
+  [Microsoft Learn — SendInput](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput)、
+  [Microsoft Learn — ChangeWindowMessageFilterEx（UIPI 定义）](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-changewindowmessagefilterex)
+
 ## 关键约束与实现要点（给 T02 FocusAdapter / ADR 的输入）
 
 1. **快照四元组（顶层 HWND/焦点 HWND/PID/TID）必须整组校验**：HWND 是可复用资源，
