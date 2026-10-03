@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ClipboardTool.Tools.E2eT02</RootNamespace>
+    <AssemblyName>E2eT02</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 四种结果文案单源（工单硬约束）：诊断断言直接用 Domain 常量，不抄第二份 -->
+    <ProjectReference Include="..\..\ClipboardTool.Domain\ClipboardTool.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

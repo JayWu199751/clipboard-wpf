@@ -31,6 +31,9 @@ public partial class PanelWindow : Window
     private readonly ScreenMetricsProvider _screens = new();
     private bool _docked = true;
 
+    /// <summary>双击卡片：复制并粘贴该条目（F11 第二入口；单击仅选中）。</summary>
+    public event Action<string>? CardPasteRequested;
+
     public PanelWindow()
     {
         InitializeComponent();
@@ -82,6 +85,13 @@ public partial class PanelWindow : Window
         }
     }
 
+    /// <summary>整表重载历史条目（历史服务的事件已归队 UI 线程）。</summary>
+    public void ReloadEntries(IReadOnlyList<Domain.History.HistoryEntry> entries) =>
+        ((PanelViewModel)DataContext).Reload(entries);
+
+    /// <summary>显示焦点错误提示（文案与结果契约同源；呼出时清除，F14）。</summary>
+    public void ShowStatus(string message) => ((PanelViewModel)DataContext).StatusText = message;
+
     /// <summary>呼出落地：光标所在屏工作区居中，尺寸按 F15 公式；光标屏放不下时主屏兜底；回读验证落地。</summary>
     public void Summon()
     {
@@ -103,8 +113,45 @@ public partial class PanelWindow : Window
         _ = screen is { } metrics
             && WindowPlacer.PlaceSummonDip(Hwnd, metrics, position, size.Width, size.Height);
 
+        OnSummoned();
         _docked = false;
         DockStateChanged?.Invoke(_docked);
+    }
+
+    /// <summary>呼出后置位（F14）：清结果/焦点错误提示、选中重置为第一项并滚动到位。</summary>
+    private void OnSummoned()
+    {
+        var viewModel = (PanelViewModel)DataContext;
+        viewModel.StatusText = string.Empty;
+        if (HistoryList.Items.Count > 0)
+        {
+            HistoryList.SelectedIndex = 0;
+            HistoryList.ScrollIntoView(HistoryList.SelectedItem);
+        }
+    }
+
+    // PreviewMouseDoubleClick（隧道）：MouseDoubleClick 是 Direct 路由事件，绑在 ListBox 上
+    // 收不到卡片内部的双击（事件由最内层 ListBoxItem 触发、不冒泡）；隧道阶段第一次按下
+    // 已完成选中，SelectedItem 即被双击的卡片
+    private void OnCardDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (HistoryList.SelectedItem is CardViewModel card)
+        {
+            CardPasteRequested?.Invoke(card.Id);
+        }
+    }
+
+    /// <summary>当前选中条目 id（Enter 复制并粘贴的目标；无选中返回 null）。</summary>
+    public string? SelectedCardId => (HistoryList.SelectedItem as CardViewModel)?.Id;
+
+    /// <summary>渲染复制并粘贴结果（结果契约 message 单源；呼出时清除）。</summary>
+    public void ShowResult(Domain.PasteChain.CopyResult result)
+    {
+        if (!result.Ok)
+        {
+            ((PanelViewModel)DataContext).StatusText = result.Message;
+        }
+        // 成功文案「已复制并粘贴」不打扰：面板即刻停靠（F12），无额外提示需求
     }
 
     /// <summary>停靠：屏外驻留（工作区右缘外 20 DIP、y=工作区顶），窗口不销毁。</summary>

@@ -1,12 +1,38 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Windows;
+using ClipboardTool.Domain.History;
+
 namespace ClipboardTool.Presentation.Wpf;
 
-/// <summary>面板视图模型骨架：占位条目驱动虚拟化列表；真实剪贴历史流归 T02。</summary>
-public sealed class PanelViewModel
+/// <summary>
+/// 面板视图模型：真实历史条目驱动卡片列表（T02 文字段）。
+/// 条目集合由 EntriesChanged 事件整表重载（T02 规模足够；增量刷新与搜索归 T04）；
+/// 状态文案为结果契约 { ok, message } 的 message 单源渲染（F12），呼出时清空（F14）。
+/// </summary>
+public sealed class PanelViewModel : INotifyPropertyChanged
 {
-    public IReadOnlyList<PlaceholderCard> Items { get; } =
-        Enumerable.Range(1, 200).Select(index => new PlaceholderCard(index)).ToList();
+    private string _statusText = string.Empty;
+
+    public ObservableCollection<CardViewModel> Items { get; } = [];
 
     public string CountText => $"{Items.Count} 条";
+
+    /// <summary>焦点错误/结果提示（toast 雏形；F46 的完整 toast 归 T05）。空串即隐藏。</summary>
+    public string StatusText
+    {
+        get => _statusText;
+        set
+        {
+            if (_statusText == value) return;
+            _statusText = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(StatusVisible));
+        }
+    }
+
+    public Visibility StatusVisible => string.IsNullOrEmpty(_statusText) ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>
     /// 页脚六组提示（F45）。键名字形与动作文案逐字对齐原型注册表
@@ -23,16 +49,28 @@ public sealed class PanelViewModel
         new("Esc", "隐藏"),
     ];
 
+    /// <summary>整表重载：全量快照替换（监听线程的变更事件已由订阅方归队 UI）。</summary>
+    public void Reload(IReadOnlyList<HistoryEntry> entries)
+    {
+        Items.Clear();
+        foreach (var entry in entries)
+        {
+            Items.Add(new CardViewModel(entry.Id, entry.Text, FormatMeta(entry)));
+        }
+        OnPropertyChanged(nameof(CountText));
+    }
+
+    /// <summary>Meta 行（T02 只有创建时间；来源归 T03、图钉/备注归 T05）。</summary>
+    private static string FormatMeta(HistoryEntry entry) =>
+        DateTimeOffset.FromUnixTimeMilliseconds(entry.CreatedAtMs).LocalDateTime.ToString("MM-dd HH:mm");
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged([CallerMemberName] string? name = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
     public sealed record FooterHint(string Keys, string Action);
-
-    /// <summary>搜索键 chip 归 T04 键位注册表；为空时搜索井不显示 chip。</summary>
-    public string SearchKeyText => string.Empty;
 }
 
-/// <summary>占位条目：无真实数据时撑起卡片与滚动。</summary>
-public sealed record PlaceholderCard(int Index)
-{
-    public string Body => $"占位条目 {Index} —— 正文骨架，行高约 20.15，最多三行（T02 接入真实历史）";
-
-    public string Meta => $"来源 · 2026-10-03 12:00 · 图钉 · 备注 {Index}";
-}
+/// <summary>卡片视图模型：Body 为完整正文原样（展示层裁三行，不改正文，F01）。</summary>
+public sealed record CardViewModel(string Id, string Body, string Meta);

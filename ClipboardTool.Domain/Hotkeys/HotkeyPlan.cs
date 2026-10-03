@@ -65,6 +65,11 @@ public sealed class HotkeyPlan
     /// <summary>浏览态停靠键：裸 Esc（F18）。仅在面板呼出期间进入计划，停靠后让位注销。</summary>
     public static HotkeyCombo BrowseDock { get; } = new(HotkeyModifiers.None, VirtualKeyEscape);
 
+    /// <summary>浏览态复制并粘贴键：裸 Enter（F11/F18）。全局注册（浏览态无窗口焦点），停靠后让位。</summary>
+    public static HotkeyCombo BrowseEnter { get; } = new(HotkeyModifiers.None, VirtualKeyReturn);
+
+    public const uint VirtualKeyReturn = 0x0D;
+
     private readonly IReadOnlyList<HotkeyCombo> _targets;
 
     public HotkeyPlan(IReadOnlyList<HotkeyCombo> targets) =>

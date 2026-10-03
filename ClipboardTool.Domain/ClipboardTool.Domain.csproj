@@ -5,4 +5,8 @@
     <RootNamespace>ClipboardTool.Domain</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="ClipboardTool.Tests" />
+  </ItemGroup>
+
 </Project>

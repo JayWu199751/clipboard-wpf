@@ -162,13 +162,15 @@
                      原生滚动条隐藏且不占位（对齐原型 scrollbar-width:none）：Hidden 仅不绘制、
                      仍按滚动条期望宽度压缩视口，导致卡片右缘被裁、右细线消失，故将宽度钳为 0；
                      自绘滚动指示条归后续工单 -->
-                <ListBox Grid.Row="1"
+                <ListBox x:Name="HistoryList"
+                         Grid.Row="1"
                          Margin="12,12,12,16"
                          ItemsSource="{Binding Items}"
                          ItemContainerStyle="{StaticResource CardContainerStyle}"
                          Background="Transparent"
                          BorderThickness="0"
                          Padding="0"
+                         PreviewMouseDoubleClick="OnCardDoubleClick"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Hidden"
                          VirtualizingPanel.IsVirtualizing="True"
@@ -192,11 +194,14 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>
+                                <!-- 正文最多三行裁剪（原型 line-clamp；完整正文在备注/粘贴里原样，F01） -->
                                 <TextBlock Text="{Binding Body}"
                                            FontSize="13"
                                            LineHeight="20.15"
                                            LineStackingStrategy="BlockLineHeight"
+                                           MaxHeight="60.45"
                                            TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"
                                            Foreground="{DynamicResource Brush.Text.Primary}" />
                                 <TextBlock Text="{Binding Meta}"
                                            Margin="0,8,0,0"
@@ -210,6 +215,22 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+
+                <!-- 结果提示（toast 雏形，F46 完整形态归 T05）：结果契约 message 单源渲染，空串即隐藏 -->
+                <Border Grid.Row="1"
+                        Margin="12,0,12,20"
+                        Padding="12,7"
+                        CornerRadius="8"
+                        VerticalAlignment="Bottom"
+                        Background="{DynamicResource Brush.Input}"
+                        BorderBrush="{DynamicResource Brush.Border.Strong}"
+                        BorderThickness="1"
+                        Visibility="{Binding StatusVisible}">
+                    <TextBlock Text="{Binding StatusText}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Foreground="{DynamicResource Brush.Text.Primary}" />
+                </Border>
 
                 <!-- 页脚：左右 16、顶部细分隔线、mono 10.5；左侧计数，右侧六组键位提示（组间 8、组内 4，chip 高 16/字 9.5）
                      数据源 = 原型注册表（prototype.js footer groups），T04 起由键位注册表按模式生成 -->
