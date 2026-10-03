@@ -1,0 +1,4 @@
+﻿"label","round","phase","medianPrivateMB","medianWorkingSetMB","medianHandles","maxTreeCount","totalCpuMs"
+"old-tauri-debug","1","cold","95.4","324.5","2677","5","3656"
+"old-tauri-debug","1","idle","95.9","327","2719","5","3953"
+"old-tauri-debug","1","summon","94.8","320.6","2675","5","4578"

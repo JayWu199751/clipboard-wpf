@@ -2,12 +2,36 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="1.0.0.0" name="ClipboardTool.Presentation.Wpf"/>
 
+  <!-- 开发/测试构建：不提权（F35）。发布构建用 app.release.manifest（csproj 按配置选择）。
+       提权正式入口=计划任务静默通道；直接运行发布产物才走 UAC。 -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="asInvoker" uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <!-- 多屏呼出按光标所在屏折算 DIP（F16），需要逐显示器 DPI 感知 -->
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
     </windowsSettings>
   </application>
+
+  <!-- Common-Controls 6：现代控件主题（按钮/滚动条等随系统视觉样式） -->
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity
+          type="win32"
+          name="Microsoft.Windows.Common-Controls"
+          version="6.0.0.0"
+          processorArchitecture="*"
+          publicKeyToken="6595b64144ccf1df"
+          language="*"
+        />
+    </dependentAssembly>
+  </dependency>
 
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
     <application>

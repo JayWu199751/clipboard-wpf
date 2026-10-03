@@ -1,11 +1,13 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Threading;
 using ClipboardTool.Application;
 using ClipboardTool.Domain.History;
 using ClipboardTool.Domain.Hotkeys;
 using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.PasteChain;
+using ClipboardTool.Domain.Settings;
 using ClipboardTool.Infrastructure.Windows;
 
 namespace ClipboardTool.Presentation.Wpf;
@@ -22,78 +24,109 @@ public partial class App : System.Windows.Application
     private ClipboardMessageSource? _clipboardSource;
     private PanelCoordinator? _coordinator;
     private PendingDeletionService? _deletion;
+    private ThemeService? _theme;
+    private TrayIconHost? _tray;
+    private MouseHook? _mouseHook;
+    private JsonStore? _settingsStore;
+    private AppSettings _settings = AppSettings.Default;
+    private DispatcherTimer? _captureSuccessTimer;
+    private StartupService? _startup;
+    private bool _isElevated;
+
+    /// <summary>开发构建不触碰计划任务事实（F36 三态之一：只记意图）。</summary>
+    private static readonly bool IsDevelopmentBuild =
+#if DEBUG
+        true;
+#else
+        false;
+#endif
 
     /// <summary>焦点快照的真源在协调器（FocusTargetSnapshot）：呼出时补拍、退出输入态复用、
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
     private FocusTarget? CapturedFocus => _coordinator?.FocusTargetSnapshot;
 
-    // —— 启动诊断日志（临时排查启动不可见/进程退出问题；%LOCALAPPDATA%\ClipboardTool\startup.log） ——
-    private static readonly string LogPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "ClipboardTool", "startup.log");
-
-    private static void Log(string message)
-    {
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-            File.AppendAllText(LogPath, $"{DateTime.Now:HH:mm:ss.fff} {message}{Environment.NewLine}");
-        }
-        catch
-        {
-            // 日志失败不能阻塞启动
-        }
-    }
+    // —— 启动诊断日志（startup.log）已按 F39/F40 收尾移除（T08 交接项）：
+    //    日志仅为 T08 真机排查启动问题临时引入，移除前已冷启动验证启动路径无日志依赖。
+    //    崩溃取证语义（F40 panic.log）未实现，见验收矩阵 F39/F40 行。
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        Log("== OnStartup 开始 ==");
-        DispatcherUnhandledException += (_, args) =>
-        {
-            Log($"[UI线程异常] {args.Exception}");
-            args.Handled = true;
-        };
-        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
-            Log($"[未处理异常 线程将终止={args.IsTerminating}] {args.ExceptionObject}");
-        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
-            Log("[ProcessExit] 进程退出（托管路径）");
-        // 心跳：后台线程每 5 秒一行；日志断点即进程死亡时刻（区分托管退出 vs 原生崩溃/外部终止）
-        new Thread(() =>
-        {
-            for (var i = 1; ; i++)
-            {
-                Thread.Sleep(5000);
-                Log($"[心跳] +{i * 5}s");
-            }
-        })
-        { IsBackground = true }.Start();
-        TaskScheduler.UnobservedTaskException += (_, args) =>
-        {
-            Log($"[未观察任务异常] {args.Exception}");
-            args.SetObserved();
-        };
-
         base.OnStartup(e);
+
+        // —— 单实例（F34，必须最先判）：mutex 归属判「谁是首个实例」；第二实例经 pipe
+        //    投递呼出请求后退出（请求仅接受本用户：pipe 名含用户 SID；提权是同一 SID 天然互通）。
+        //    服务端未就绪时客户端有限等待（最多 5 秒，legacy 口径）；此处在启动路径上同步等待是
+        //    有意为之：投递完成前第二实例不能退。
+        var dataDir = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardTool");
+        _settingsStore = new JsonStore(dataDir);
+        _settings = _settingsStore.ReadSettings();
+
+        // —— 静默启动通道（F36）：提权生产构建在启动尾部把计划任务事实收敛到持久化意图 ——
+        var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        _isElevated = new System.Security.Principal.WindowsPrincipal(identity)
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        _startup = new StartupService(
+            new ScheduledTaskRegistrar(),
+            ScheduledTaskBuilder.DefaultTaskName,
+            Environment.ProcessPath ?? string.Empty);
+
+        var sid = identity.User?.Value ?? string.Empty;
+        var summonPipe = $"ClipboardTool-{sid}-summon";
+        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");
+        if (!gate.TryAcquire())
+        {
+            // 第二实例的职责就是把呼出请求投进 pipe 后退出：投递异步进行（不阻塞 UI 线程），
+            // 退出时机挂在投递完成回调上——投递完成前退出会让 pipe 丢信（既有语义）。
+            // legacy 5s 口径用超时取消表达（SummonAsync 内部有限等待）；异常与超时同样按
+            // 「本次未呼出」收场（退出码 1）。
+            _ = Task.Run(() => SummonClient.SummonAsync(summonPipe, timeoutMs: 5000))
+                .ContinueWith(t =>
+                {
+                    var delivered = t.Status == TaskStatus.RanToCompletion && t.Result;
+                    if (t.IsFaulted)
+                    {
+                        _ = t.Exception; // 观察异常避免未观察 Task 异常；按未送达收场
+                    }
+                    Shutdown(delivered ? 0 : 1);
+                }, TaskScheduler.FromCurrentSynchronizationContext());
+            return;
+        }
+        var summonServer = new SummonServer(summonPipe);
+        summonServer.SummonReceived += () => Dispatcher.BeginInvoke(SummonFromTray);
 
         _panel = new PanelWindow();
         _hotkeys = new HotkeyExecutor();
         _executor = new ModeExecutor();
         _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
-        Log("核心对象构造完成");
+
+        // —— 主题（F26–F28）：ThemeService 单一权威；注册表监听线程的广播归队 UI 线程。
+        //    落盘失败不推进偏好（可重试）；面板跟应用模式键、托盘跟任务栏键，两路独立判定。
+        var watcher = new RegistryThemeWatcher();
+        _theme = new ThemeService(watcher, new ThemePersistPort(this), _settings.Theme);
+        _theme.PanelThemeChanged += dark => Dispatcher.BeginInvoke(() => ApplyPanelTheme(dark));
+        _theme.TrayThemeChanged += dark => Dispatcher.BeginInvoke(() => SyncTrayIcon(dark));
+        _theme.MenuChanged += () => Dispatcher.BeginInvoke(RebuildTrayMenu);
+        watcher.ThemeChanged += () => Dispatcher.BeginInvoke(_theme.RefreshFromSystem);
+        watcher.Start();
+        ApplyPanelTheme(_theme!.IsPanelDark); // 启动即落当前有效皮肤（ThemeService 单一权威，不落盘不发事件链）
+
+        // 共享缩略图缓存（T06）：解码 Task.Run 后台线程（结果 Freeze）、回调归队 UI；
+        // 双上限（32 张 / 24 MiB）、按 Id 记忆化、失效与代次规则在缓存内部
+        _panel.SetThumbnailCache(new ThumbnailCache(
+            WpfThumbnailDecoder.Decode,
+            work => Task.Run(work),
+            action => Dispatcher.BeginInvoke(action)));
 
         // 存档目录 %APPDATA%\ClipboardTool（02-spec/02 §1 契约）：历史 JSON、图片、设置同目录。
-        // T03 起接 JsonStore：启动读旧档（坏档先备份），变更自动落盘。
-        var dataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardTool");
         var store = new HistoryStore(
             HistoryStore.DefaultMaxHistory,
             new ImageFileStore(dataDir),
             // 新 id UUID 带连字符形状（与 legacy uuid::Uuid::new_v4、旧档样例一致，02-spec/02 §1）
             () => Guid.NewGuid().ToString(),
             () => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-        _history = new HistoryService(store, new JsonStore(dataDir));
+        _history = new HistoryService(store, _settingsStore);
         _history.LoadFromStorage();
-        Log($"历史加载完成（{_history.Entries.Count} 条）");
         _watch = new ClipboardWatchService(
             new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter());
         _paste = new PasteService(
@@ -106,7 +139,6 @@ public partial class App : System.Windows.Application
 
         // 延迟删除（F25）：摘除/撤销窗口/到期真删。计时经 Dispatcher 调度器在 UI 线程触发，
         // 与面板编排同线程封闭；跨停靠/呼出继续计时（秒表语义，不随面板隐藏重置）。
-        // 订阅处的归队是防御性的（服务已承诺 UI 线程触发；与 HistoryService 的任意线程事件区分）。
         _deletion = new PendingDeletionService(new DispatcherDelayScheduler(Dispatcher), _history);
         _deletion.HiddenChanged += () => Dispatcher.BeginInvoke(() =>
             _panel?.ReloadEntries(_history!.Entries, _deletion!.HiddenIds));
@@ -132,45 +164,248 @@ public partial class App : System.Windows.Application
             _deletion!.Request(id);
         };
         _panel.NoteSaveRequested += SaveNote;
+        _panel.CaptureAttempted += OnCaptureAttempted;
+        _panel.CaptureCancelled += OnCaptureCancelled;
 
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
-        Log("剪贴板监听已启动");
+
+        // —— 单击外部停靠（F17）：全局低级鼠标钩子上报真实按下（回调只记录，ADR-0004），
+        //    判定（可见/时间窗/面板外）在 Domain.ExternalClickRules，命中走停靠编排。
+        //    事件在钩子转发线程触发，归队 UI 线程后与协调器状态同线程封闭判定。
+        _mouseHook = new MouseHook();
+        _mouseHook.Pressed += (x, y, atMs) =>
+            Dispatcher.BeginInvoke(() => DockIfClickedOutside(x, y, atMs));
+        _mouseHook.Start();
 
         // 键位计划由协调器按四态推导差量（F18–F21）：停靠态={呼出键}；呼出浏览态=呼出键+八导航键；
         // 搜索/备注/捕获按让位矩阵增删。注册动作在宿主 RegisterKey 里按动作分发（呼出/导航）。
         // 注意顺序：面板自身在 SourceInitialized 里先 Dock，此前协调器尚未给键；初始计划由
-        // Attach 之后的 SetToggleShortcut 落地（停靠态目标集合）。
+        // Attach 之后的 SetToggleShortcut 落地（停靠态目标集合）。呼出键来自设置（码表解码）。
         _panel.SourceInitialized += (_, _) =>
         {
             _hotkeys.Attach(_panel);
-            _coordinator.SetToggleShortcut(HotkeyPlan.SummonDefault);
+            _coordinator.SetToggleShortcut(ParsedToggle());
         };
 
-        // 临时托盘（F29/F30 雏形）：左键单击抬起呼出，右键菜单；呼出键展示由计划推导（提示=行为）
-        var tray = new TrayIconHost(
-            onSummonClick: SummonFromTray,
-            menuItems:
-            [
-                ($"显示面板 {HotkeyPlan.SummonDefault.DisplayName}", SummonFromTray),
-                ("退出", Shutdown),
-            ],
-            tooltip: "ClipboardTool");
-        Log("托盘创建完成");
+        // —— 托盘（F29/F30/F33）：完整菜单六项 + 主题子菜单；五档精确图标按主屏缩放取档；
+        //    主题/缩放变化经 TrayIconSync 同键去重后落地。 ——
+        _tray = new TrayIconHost("ClipboardTool");
+        _tray.SummonRequested += SummonFromTray;
+        _tray.PointerEntered += () => Dispatcher.BeginInvoke(() => SyncTrayIcon(_theme!.IsTrayDark));
+        _tray.MenuItemSelected += id => Dispatcher.BeginInvoke(() => OnTrayMenu(id));
+        RebuildTrayMenu();
+        SyncTrayIcon(_theme!.IsTrayDark);
+
+        // 呼出键没注册上=整会话热键哑；按 5s/20s 现读设置重试两遍（差量幂等，F32）
+        var retry = new SummonKeyRetry(
+            new DispatcherDelayScheduler(Dispatcher),
+            readCurrent: () => ParsedToggle(),
+            apply: combo => _coordinator!.SetToggleShortcut(combo));
+        retry.Start();
 
         _panel.Show();
-        Log("== OnStartup 完成，面板已 Show ==");
+        summonServer.Start();
+
+        // 启动收敛放尾部：一次 schtasks 查询（无动作时不注册），结果只记诊断不阻断启动
+        _ = _startup.ConvergeOnStartup(IsDevelopmentBuild, _isElevated, _settings.AutoStart);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        Log($"== OnExit 退出码={e.ApplicationExitCode} ==");
         _panel = null;
         _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
         _hotkeys?.Dispose();
         _clipboardSource?.Dispose();
+        _mouseHook?.Dispose();
         _executor?.Dispose();
         base.OnExit(e);
+    }
+
+    // —— 设置（F37 落盘口径）：内存快照单点写，落盘与托盘菜单刷新随行 ——
+
+    /// <summary>设置变更唯一入口：改快照 → 落盘 → 托盘菜单重建（文案随设置变）。</summary>
+    private void UpdateSettings(Func<AppSettings, AppSettings> change)
+    {
+        _settings = change(_settings);
+        try
+        {
+            _settingsStore!.SaveSettings(_settings);
+        }
+        catch (Exception)
+        {
+            // 落盘失败不阻断会话内生效（原子写保证原件不动）；诊断日志归 T08
+        }
+        RebuildTrayMenu();
+    }
+
+    /// <summary>
+    /// 「落盘成功才推进」的设置变更单点（UpdateSettings 的守卫变体）：失败不推进内存快照。
+    /// 主题偏好走此口（ThemeService 语义：落盘失败偏好不推进不发事件）；菜单重建由
+    /// SetTheme 的 MenuChanged 事件负责，此处不重复。除此之外不再有直改 _settings 的旁路。
+    /// </summary>
+    private bool UpdateSettingsPersistFirst(Func<AppSettings, AppSettings> change)
+    {
+        var next = change(_settings);
+        try
+        {
+            _settingsStore!.SaveSettings(next);
+        }
+        catch (Exception)
+        {
+            return false; // 原子写失败=原件不动，偏好保持旧值
+        }
+        _settings = next;
+        return true;
+    }
+
+    /// <summary>当前呼出键（设置串按码表解码；解析不了回落默认键——坏档不哑热键）。</summary>
+    private HotkeyCombo ParsedToggle() =>
+        AccelCodec.Parse(_settings.Shortcut) ?? HotkeyPlan.SummonDefault;
+
+    /// <summary>
+    /// 「开机启动」开关三态（F36）：开发构建只记意图、未提权延后到下次提权启动收敛、
+    /// 已提权立即重建任务事实；重建失败回退（意图不翻转，状态栏提示，任务保持原样可重试）。
+    /// 意图落盘仍走 UpdateSettings 单点（快照+落盘+菜单重建）。
+    /// </summary>
+    private void ToggleAutoStart()
+    {
+        var newIntent = !_settings.AutoStart;
+        var outcome = _startup!.Toggle(IsDevelopmentBuild, _isElevated, newIntent);
+        if (outcome.IntentApplied)
+        {
+            UpdateSettings(s => s with { AutoStart = newIntent });
+        }
+        else
+        {
+            ShowStatus(outcome.Message ?? "计划任务更新失败，开机启动未开启");
+        }
+    }
+
+    // —— 主题编排（F26–F28）：明暗判定单一权威在 ThemeService（IsPanelDark/IsTrayDark） ——
+
+    private void ApplyPanelTheme(bool dark)
+    {
+        var source = new Uri(dark ? "Themes/Dark.xaml" : "Themes/Light.xaml", UriKind.Relative);
+        Resources.MergedDictionaries[0] = new ResourceDictionary { Source = source };
+    }
+
+    private void SyncTrayIcon(bool dark)
+    {
+        var scale = new ScreenMetricsProvider().GetPrimary()?.DpiScale ?? 1.0;
+        _tray?.SyncIcon(dark, scale);
+    }
+
+    /// <summary>托盘菜单（F30）：六项 + 主题子菜单；三条动态文案由 TrayIconDecider 收口。</summary>
+    private void RebuildTrayMenu()
+    {
+        if (_tray is null)
+        {
+            return;
+        }
+        var labels = TrayIconDecider.MenuLabels(_settings.Shortcut, _settings.AutoStart);
+        _tray.SetMenuItems(
+        [
+            new TrayMenuItem("show", "显示剪贴板面板"),
+            new TrayMenuItem("change-shortcut", labels.Shortcut),
+            new TrayMenuItem("sep1", Separator: true),
+            new TrayMenuItem("autostart", labels.Autostart, Checked: _settings.AutoStart),
+            new TrayMenuItem("theme", TrayIconDecider.ThemeMenuTitle(_settings.Theme),
+                SubItems: TrayIconDecider.ThemeMenuItems(_settings.Theme)
+                    .Select(item => new TrayMenuItem(item.Id, item.Label, item.Checked))
+                    .ToList()),
+            new TrayMenuItem("clear-history", "清空历史"),
+            new TrayMenuItem("sep2", Separator: true),
+            new TrayMenuItem("quit", "退出"),
+        ]);
+    }
+
+    /// <summary>托盘菜单分发：id → 动作。主题项经纯判定映射；认不出的 id 什么都不做。</summary>
+    private void OnTrayMenu(string id)
+    {
+        switch (id)
+        {
+            case "show":
+                SummonFromTray();
+                break;
+            case "change-shortcut":
+                EnterShortcutCapture();
+                break;
+            case "autostart":
+                ToggleAutoStart();
+                break;
+            case "clear-history":
+                // 清空历史编排（F33）：次序收口在 PendingDeletionService.ClearAll（F25 排空 + 清库存）
+                _deletion!.ClearAll();
+                break;
+            case "quit":
+                Shutdown();
+                break;
+            default:
+                if (TrayIconDecider.ThemeOfMenuId(id) is { } theme)
+                {
+                    _theme!.SetTheme(theme);
+                }
+                break;
+        }
+    }
+
+    // —— 换键捕获编排（F31） ——
+
+    /// <summary>
+    /// 进入捕获：状态机退输入态+注销全部全局键 → 呼出面板+覆盖层 → 聚焦面板收键
+    /// （捕获态 NeedsFocus=false 是状态机的键位语义；覆盖层的键盘采集由编排侧显式聚焦）。
+    /// </summary>
+    private void EnterShortcutCapture()
+    {
+        if (_panel is null || !_coordinator!.EnterInput(PanelMode.ShortcutCapture))
+        {
+            return;
+        }
+        _panel.Summon();
+        _panel.ShowCaptureOverlay();
+        FocusAdapter.SetNoActivate(_panel, on: false);
+        FocusAdapter.ActivateForInput(_panel);
+    }
+
+    /// <summary>覆盖层录入：校验（缺修饰）→ 试注册（占用/无效保旧键）→ 成功持久化 1200ms 收层。</summary>
+    private void OnCaptureAttempted(HotkeyCombo combo)
+    {
+        var verdict = CaptureKeyRules.Validate(combo);
+        if (verdict != CaptureVerdict.Ok)
+        {
+            _panel?.SetCaptureStatus(CaptureKeyRules.MessageOf(verdict), ok: false);
+            return;
+        }
+        if (!_coordinator!.TrySetToggleShortcut(combo))
+        {
+            _panel?.SetCaptureStatus($"{combo.DisplayName} 已被占用或无效，请换一个", ok: false);
+            return;
+        }
+        UpdateSettings(s => s with { Shortcut = AccelCodec.Encode(combo) });
+        _panel?.SetCaptureStatus($"已设置为 {combo.DisplayName}", ok: true);
+        ScheduleCaptureOverlayClose();
+    }
+
+    /// <summary>Esc 取消：状态机退捕获态恢复旧键（差量自动恢复），capture-end 事件收层。</summary>
+    private void OnCaptureCancelled()
+    {
+        _coordinator!.ExitInput(PanelMode.ShortcutCapture, restoreFocus: false);
+        // ExitInputInternal 会发 CaptureEnd → SendCaptureEnd 收层；这里无需重复
+    }
+
+    /// <summary>成功路径的 1200ms 收层（legacy 渲染层 setTimeout；失败不收层可继续录）。</summary>
+    private void ScheduleCaptureOverlayClose()
+    {
+        _captureSuccessTimer?.Stop();
+        _captureSuccessTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+        _captureSuccessTimer.Tick += (_, _) =>
+        {
+            _captureSuccessTimer!.Stop();
+            _captureSuccessTimer = null;
+            _panel?.HideCaptureOverlay();
+        };
+        _captureSuccessTimer.Start();
     }
 
     // —— 呼出/停靠编排 ——
@@ -214,6 +449,30 @@ public partial class App : System.Windows.Application
 
     /// <summary>浏览态 Esc 停靠（宿主事件入口）。</summary>
     private void DockFromPanel() => DockPanel(restoreFocus: true);
+
+    /// <summary>
+    /// 单击面板外部 → 停靠（F17）：全局钩子上报的一次真实按下。判定全部在 Domain 纯规则
+    /// （ExternalClickRules.ShouldDockOnOutsideClick）：面板可见 + 点击晚于本次呼出
+    /// （时间窗防护：呼出瞬间的惯用手势不误收）+ 明确落在面板物理矩形外（矩形读不到不动作）。
+    /// 输入态不豁免（legacy hide 统一路径逐层退出）；多击连点每次按下判一次（legacy 口径）。
+    /// </summary>
+    private void DockIfClickedOutside(int x, int y, long clickedAtMs)
+    {
+        if (_panel is not { IsDocked: false } panel
+            || _coordinator is not { Visible: true } coordinator)
+        {
+            return; // 面板不可见：不动作
+        }
+        bool? inside = WindowPlacer.TryGetPhysicalRect(panel.Hwnd, out var rect)
+            ? ExternalClickRules.ContainsPoint(rect.Left, rect.Top, rect.Right, rect.Bottom, x, y)
+            : null;
+        if (!ExternalClickRules.ShouldDockOnOutsideClick(
+                panelVisible: true, coordinator.ShownAtMs, clickedAtMs, inside))
+        {
+            return;
+        }
+        DockPanel(restoreFocus: true);
+    }
 
     private void EnterSearch() => _ = _coordinator!.EnterInput(PanelMode.Search);
 
@@ -348,7 +607,8 @@ public partial class App : System.Windows.Application
 
         public void SendCaptureEnd()
         {
-            // 捕获覆盖层的呈现与收起归 T07；本票捕获态只参与状态机与键位让位
+            // capture-end：捕获取消/强退路径收覆盖层（成功路径由 1200ms 计时自行收）
+            app._panel?.HideCaptureOverlay();
         }
 
         public FocusTarget? CaptureFocus() => FocusPasteRestore.Capture();
@@ -369,5 +629,13 @@ public partial class App : System.Windows.Application
             targetId is null || app._history!.Find(targetId) is not null;
 
         public bool IsKeyDown(uint virtualKey) => KeyboardState.IsKeyDown(virtualKey);
+    }
+
+    /// <summary>主题落盘端口（ThemeService.IPersistPort）：走设置单点 PersistFirst 变体——
+    /// 落盘成功才推进内存快照（失败=偏好不推进不发事件，会话内可重试）。</summary>
+    private sealed class ThemePersistPort(App app) : ThemeService.IPersistPort
+    {
+        public bool SaveTheme(ThemeKind theme) =>
+            app.UpdateSettingsPersistFirst(s => s with { Theme = theme });
     }
 }

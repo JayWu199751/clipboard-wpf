@@ -24,6 +24,8 @@ internal static class NativeMethods
 
     // 剪贴板（F09/F10：独占窗口、序列号短路、事件源）
     public const uint CF_UNICODETEXT = 13;
+    public const uint CF_DIB = 8;
+    public const uint CF_DIBV5 = 17;
     public const int WM_CLIPBOARDUPDATE = 0x031D;
 
     /// <summary>message-only 窗口的父句柄（HWND_MESSAGE）。</summary>
@@ -45,17 +47,24 @@ internal static class NativeMethods
 
     // 托盘（Shell_NotifyIcon）
     public const uint NIM_ADD = 0;
+    public const uint NIM_MODIFY = 1;
     public const uint NIM_DELETE = 2;
     public const uint NIF_MESSAGE = 0x0001;
     public const uint NIF_ICON = 0x0002;
     public const uint NIF_TIP = 0x0004;
     public const int WM_APP_TRAY = 0x8000 + 1; // WM_APP + 1
+    public const uint WM_LBUTTONDOWN = 0x0201;
     public const uint WM_LBUTTONUP = 0x0202;
+    public const uint WM_MOUSEMOVE = 0x0200;
+    public const uint WM_LBUTTONDBLCLK = 0x0203;
     public const uint WM_RBUTTONUP = 0x0205;
     public const int WM_NULL = 0x0000;
 
     // 托盘右键菜单
     public const uint MF_STRING = 0x0000;
+    public const uint MF_POPUP = 0x0010;
+    public const uint MF_SEPARATOR = 0x0800;
+    public const uint MF_CHECKED = 0x0008;
     public const uint TPM_RETURNCMD = 0x0100;
     public const uint TPM_NONOTIFY = 0x0080;
     public const uint TPM_RIGHTBUTTON = 0x0002;
@@ -231,6 +240,36 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool DestroyWindow(IntPtr hwnd);
 
+    // —— 全局低级鼠标钩子（F17；legacy click_watcher.rs 同款 API 面） ——
+
+    public const int WH_MOUSE_LL = 14;
+    public const uint WM_RBUTTONDOWN = 0x0204;
+    public const uint WM_MBUTTONDOWN = 0x0207;
+    public const uint WM_XBUTTONDOWN = 0x020B;
+
+    public delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>LL 钩子的按下信息：物理像素坐标 + 注入标志等（本进程只读 pt）。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    /// <summary>安装钩子。LL 钩子 hMod 传 Zero（钩子过程在本进程内）、线程 id 传 0。</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookExW(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct MSG
     {
@@ -263,6 +302,138 @@ internal static class NativeMethods
 
     public const uint WM_QUIT = 0x0012;
     public const uint WM_TIMER = 0x0113;
+
+    // ---------- 注册表主题键读取与监听（F26–F28） ----------
+
+    public static readonly IntPtr HKEY_CURRENT_USER = new(unchecked((int)0x80000001));
+    public const int REG_NOTIFY_CHANGE_LAST_SET = 0x00000004;
+
+    // RegGetValueW 在本机环境对所有调用约定返回 1630（.NET 自家的 Registry 类走的是
+    // RegQueryValueExW 且可用）——主题读数改用 RegOpenKeyW + RegQueryValueExW + RegCloseKey。
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+    public static extern int RegQueryValueExW(IntPtr hkey, string lpValueName, IntPtr lpReserved,
+        out uint lpType, out uint lpData, ref uint lpcbData);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int RegOpenKeyW(IntPtr hkey, string lpSubKey, out IntPtr phkResult);
+
+    [DllImport("advapi32.dll")]
+    public static extern int RegCloseKey(IntPtr hkey);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    public static extern int RegNotifyChangeKeyValue(IntPtr hkey, bool watchSubtree,
+        int notifyFilter, IntPtr manualResetEvent, bool asynchronous);
+
+    // ---------- 托盘图标（PNG → HICON，F29） ----------
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteDC(IntPtr hdc);
+
+    [DllImport("gdi32.dll")]
+    public static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO bitmapInfo, uint usage,
+        out IntPtr ppvBits, IntPtr hSection, uint offset);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    public static extern IntPtr CreateBitmap(int width, int height, uint planes, uint bitsPerPixel, byte[] bits);
+
+    [DllImport("user32.dll")]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr CreateIconIndirect(ref ICONINFO iconInfo); // 返回 HICON（非 BOOL）
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ICONINFO
+    {
+        public bool fIcon;
+        public int xHotspot;
+        public int yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BITMAPINFOHEADER
+    {
+        public uint biSize;
+        public int biWidth;
+        public int biHeight; // 正值 = 自底向上
+        public ushort biPlanes;
+        public ushort biBitCount;
+        public uint biCompression;
+        public uint biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public uint biClrUsed;
+        public uint biClrImportant;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BITMAPINFO
+    {
+        public BITMAPINFOHEADER bmiHeader;
+        public uint bmiColors; // 32bpp BI_RGB 不需要颜色表
+    }
+
+    public const uint DIB_RGB_COLORS = 0;
+    public const uint BI_RGB = 0;
+
+    /// <summary>创建 32bpp 自底向上 DIB 并写入 BGRA 像素（托盘图标色层）。</summary>
+    public static IntPtr CreateGDIBitmap(int width, int height, byte[] bgraPixels)
+    {
+        var hdc = CreateCompatibleDC(IntPtr.Zero);
+        if (hdc == IntPtr.Zero)
+        {
+            return IntPtr.Zero;
+        }
+        try
+        {
+            var info = new BITMAPINFO
+            {
+                bmiHeader = new BITMAPINFOHEADER
+                {
+                    biSize = (uint)Marshal.SizeOf<BITMAPINFOHEADER>(),
+                    biWidth = width,
+                    biHeight = height, // 正值 = bottom-up：BGRA 行序需倒序写入
+                    biPlanes = 1,
+                    biBitCount = 32,
+                    biCompression = BI_RGB,
+                },
+            };
+            var bits = CreateDIBSection(hdc, ref info, DIB_RGB_COLORS, out var ppv, IntPtr.Zero, 0);
+            if (bits == IntPtr.Zero || ppv == IntPtr.Zero)
+            {
+                return IntPtr.Zero;
+            }
+            // 自底向上：最后一行先放。CopyPixels 是 top-down 行序，倒行距拷入
+            for (var row = 0; row < height; row++)
+            {
+                var source = row * width * 4;
+                var target = (height - 1 - row) * width * 4;
+                Marshal.Copy(bgraPixels, source, ppv + target, width * 4);
+            }
+            return bits;
+        }
+        finally
+        {
+            _ = DeleteDC(hdc);
+        }
+    }
+
+    /// <summary>创建 1bpp 单色掩码位图（32bpp BGRA 带 alpha，掩码全 0 = 全 opaque 即可）。</summary>
+    public static IntPtr CreateGDIMask(int width, int height)
+    {
+        // 1bpp 行宽按 16 位对齐（GDI 要求 WORD 对齐）；全 0 = opaque
+        var stride = (width + 15) / 16 * 2;
+        var mask = new byte[stride * height];
+        return CreateBitmap(width, height, 1, 1, mask);
+    }
 
     // ---------- 焦点恢复与注入（本仓库 ADR-0003；F12/F13） ----------
 

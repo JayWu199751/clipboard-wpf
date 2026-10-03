@@ -24,10 +24,14 @@ public interface IClipboardReader
     ClipboardReadOutcome Read();
 }
 
-/// <summary>写剪贴板。写文字直接写；写图片按 PNG 文件路径落位图内容（F11，T06 实现）。</summary>
+/// <summary>写剪贴板。写文字直接写；写图片按 PNG 文件路径落位图内容（F11，保透明通道）。</summary>
 public interface IClipboardWriter
 {
     bool WriteText(string text);
+
+    /// <summary>写图片（T06）：按路径按需读盘，写位图内容（DIBV5+DIB，非文件路径）；
+    /// 文件读不出或被占用返回 false（调用方基线不动）。</summary>
+    bool WriteImage(string pngPath);
 }
 
 /// <summary>剪贴板序列号：Win32 全局计数器，任何写操作都会 +1；读取不需要打开剪贴板。</summary>

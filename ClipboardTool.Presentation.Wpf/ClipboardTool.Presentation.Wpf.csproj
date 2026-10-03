@@ -6,7 +6,9 @@
     <UseWPF>true</UseWPF>
     <RootNamespace>ClipboardTool.Presentation.Wpf</RootNamespace>
     <AssemblyName>ClipboardTool</AssemblyName>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- 清单双形态（F35）：发布 requireAdministrator（直接运行即 UAC），开发 asInvoker -->
+    <ApplicationManifest Condition="'$(Configuration)' == 'Release'">app.release.manifest</ApplicationManifest>
+    <ApplicationManifest Condition="'$(Configuration)' != 'Release'">app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

@@ -39,17 +39,21 @@ public sealed class PasteService : IPastePort
     public CopyContent? ContentOf(string id)
     {
         var entry = _history.Find(id);
-        // 文字条目取正文；图片条目的位图写入归 T06（届时此处返回 CopyContent.Image）。
-        // 图片条目当前按「内容不可用」处理，走统一的 EntryUnavailable 文案。
-        return entry is { Type: EntryKind.Text, Text: { } text } ? new CopyContent.Text(text) : null;
+        // 文字条目取正文；图片条目交给写侧按需读盘（路径进来，文件读不出在 WriteImage 报不可用）
+        return entry switch
+        {
+            { Type: EntryKind.Text, Text: { } text } => new CopyContent.Text(text),
+            { Type: EntryKind.Image, ImagePath: { } path } => new CopyContent.Image(path),
+            _ => null,
+        };
     }
 
     public bool WriteClipboard(CopyContent content) => content switch
     {
         // 写入与基线同步原子化（同轮内临界区）：事件轮看不到「已写入未同步」的中间态
         CopyContent.Text text => _watch.WriteAndSyncText(text.Value),
-        // 图片侧（按 PNG 文件路径写位图）归 T06；当前历史里不可能出现图片条目
-        CopyContent.Image => false,
+        // 图片侧（T06）：写位图内容保透明通道，不是文件路径
+        CopyContent.Image image => _watch.WriteAndSyncImage(image.PngPath),
         _ => false,
     };
 

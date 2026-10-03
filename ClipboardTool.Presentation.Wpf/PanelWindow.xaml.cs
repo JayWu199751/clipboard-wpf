@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using ClipboardTool.Application;
 using ClipboardTool.Domain.Geometry;
+using ClipboardTool.Domain.Hotkeys;
 using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.Search;
 using ClipboardTool.Infrastructure.Windows;
@@ -44,6 +45,7 @@ public partial class PanelWindow : Window
     private readonly ScreenMetricsProvider _screens = new();
     private readonly PanelViewModel _viewModel;
     private readonly SearchDebouncer _searchDebouncer;
+    private readonly ContainerDiagnostics? _containerDiag; // 真机容器计数证据（CLIPBOARDTOOL_E2E_DIAG 指向输出文件时启用）
     private string _noteDraftInitial = string.Empty; // 进入备注编辑时的原文快照（保存差异判断）
     private bool _docked = true;
     private bool _syncingSelection;
@@ -90,11 +92,23 @@ public partial class PanelWindow : Window
         // Esc 停靠是浏览态全局键（F18，让位模型）：由协调器差量注册后经 HandlePanelKey 到达
         HookCompositionEvents();
         SearchBox.PreviewKeyDown += OnSearchBoxPreviewKeyDown;
+        // 捕获覆盖层（F31）：窗口级隧道拦截，覆盖层可见时吃掉全部按键（捕获态无全局键）
+        PreviewKeyDown += OnCaptureOverlayPreviewKeyDown;
+
+        var diagPath = Environment.GetEnvironmentVariable("CLIPBOARDTOOL_E2E_DIAG");
+        if (!string.IsNullOrEmpty(diagPath))
+        {
+            _containerDiag = new ContainerDiagnostics(HistoryList, diagPath);
+        }
     }
 
     public bool IsDocked => _docked;
 
-    private IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
+    /// <summary>注入共享缩略图缓存（T06，App 构造后调用；仅图片卡使用，文字卡零开销）。</summary>
+    public void SetThumbnailCache(ThumbnailCache cache) => _viewModel.SetThumbnailCache(cache);
+
+    /// <summary>窗口句柄（F17 外部点击判定取物理矩形用；EnsureHandle 保证已建）。</summary>
+    public IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
 
     /// <summary>
     /// 内层三行 Grid 按内圆角裁剪（对齐原型的 overflow:hidden + border-radius）。
@@ -164,6 +178,7 @@ public partial class PanelWindow : Window
             && WindowPlacer.PlaceSummonDip(Hwnd, metrics, position, size.Width, size.Height);
 
         _docked = false;
+        ForEachThumbnailHost(host => host.Request()); // 呼出预热已实现容器（停靠时已回收）
     }
 
     /// <summary>停靠：屏外驻留（工作区右缘外 20 DIP、y=工作区顶），窗口不销毁。</summary>
@@ -177,6 +192,37 @@ public partial class PanelWindow : Window
         WindowPlacer.PlaceDip(Hwnd, screen, position, widthDip, heightDip);
 
         _docked = true;
+        // 停靠回收不可见项（T06）：清空缩略图缓存 + 释放已实现容器的位图引用；
+        // 迟到的解码结果被缓存/宿主的代次与失效规则丢弃
+        _viewModel.Thumbnails?.Clear();
+        ForEachThumbnailHost(host => host.Reset());
+    }
+
+    /// <summary>对列表中已实现（realized）容器的缩略图宿主逐个执行操作（虚拟化：未实现的不可见，无需处理）。</summary>
+    private void ForEachThumbnailHost(Action<ThumbnailHost> action)
+    {
+        var generator = HistoryList.ItemContainerGenerator;
+        for (var i = 0; i < HistoryList.Items.Count; i++)
+        {
+            if (generator.ContainerFromIndex(i) is ListBoxItem container)
+            {
+                WalkThumbnailHosts(container, action);
+            }
+        }
+    }
+
+    private static void WalkThumbnailHosts(DependencyObject node, Action<ThumbnailHost> action)
+    {
+        if (node is ThumbnailHost host)
+        {
+            action(host);
+            return;
+        }
+        var count = VisualTreeHelper.GetChildrenCount(node);
+        for (var i = 0; i < count; i++)
+        {
+            WalkThumbnailHosts(VisualTreeHelper.GetChild(node, i), action);
+        }
     }
 
     // —— 协调器 panel:key 事件的渲染侧（动作名协议见 Domain.PanelModes） ——
@@ -404,7 +450,8 @@ public partial class PanelWindow : Window
         {
             return;
         }
-        _viewModel.SelectedIndex = HistoryList.SelectedIndex; // 鼠标点选回写视图模型（键盘导航基准）
+        // 容器回写经噪音过滤（T09 Del 竞态修复）：重建/Recycling 换绑的 -1 不落回视图模型
+        _viewModel.SyncSelectionFromContainer(HistoryList.SelectedIndex);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -560,6 +607,9 @@ public partial class PanelWindow : Window
             IsError = isError,
             ActionLabel = actionLabel,
             OnAction = onAction,
+            // F48：播报文本与动画开关在入栈时一次定死（Announcement 含错误前缀/动作/dim）
+            Announcement = ToastAnnouncement.Build(message, isError, actionLabel, dim),
+            Animated = AccessibilityMotion.PlayAnimations,
         };
         _viewModel.Toasts.Add(toast);
         var life = actionLabel is not null ? PendingDeletionService.UndoToastMs : ToastLifeMs;
@@ -641,5 +691,78 @@ public partial class PanelWindow : Window
         {
             ShowToast(result.Message, null, isError: true, actionLabel: null, onAction: null);
         }
+    }
+
+    // —— 捕获覆盖层（F31；legacy shortcutCapture 渲染态的移植） ——
+
+    /// <summary>捕获层录入到的新组合（校验通过的主键 + 修饰键；Esc 走取消事件不经此）。</summary>
+    public event Action<HotkeyCombo>? CaptureAttempted;
+
+    /// <summary>捕获取消（Esc）：状态机退出捕获态并发 capture-end，宿主据此收层。</summary>
+    public event Action? CaptureCancelled;
+
+    /// <summary>捕获覆盖层是否正在显示。</summary>
+    public bool IsCaptureOverlayVisible => CaptureOverlay.Visibility == Visibility.Visible;
+
+    /// <summary>显示捕获覆盖层（进入捕获态并呼出面板之后调用；焦点由宿主先聚到面板）。</summary>
+    public void ShowCaptureOverlay()
+    {
+        CaptureStatusText.Text = string.Empty;
+        CaptureOverlay.Visibility = Visibility.Visible;
+        Focus(); // 覆盖层不进 tab 序，窗口级 PreviewKeyDown 收键（宿主已清 NOACTIVATE）
+    }
+
+    /// <summary>收起捕获覆盖层（capture-end 事件与成功后延迟收层共用）。</summary>
+    public void HideCaptureOverlay() => CaptureOverlay.Visibility = Visibility.Collapsed;
+
+    /// <summary>状态行：失败（占用/无效/缺修饰）红叉色，成功默认色。</summary>
+    public void SetCaptureStatus(string text, bool ok)
+    {
+        CaptureStatusText.Text = text;
+        CaptureStatusText.Foreground = ok
+            ? (Brush)FindResource("Brush.Text.Primary")
+            : (Brush)FindResource("Brush.Error");
+    }
+
+    /// <summary>
+    /// 覆盖层可见时窗口级吃键：修饰键自身忽略（等主键）；Esc 取消；其余主键经 WPF Key →
+    /// 虚拟键码构造组合交给捕获判定（占用/无效/成功全部由状态机与宿主决定，本层只转换）。
+    /// </summary>
+    private void OnCaptureOverlayPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!IsCaptureOverlayVisible)
+        {
+            return;
+        }
+        e.Handled = true;
+        switch (e.Key)
+        {
+            case Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
+                or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin:
+                return; // 修饰键按下本身不算录入，等主键
+            case Key.Escape:
+                CaptureCancelled?.Invoke();
+                return;
+            case Key.System:
+                break; // Alt 组合：真实键在 SystemKey
+        }
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.None)
+        {
+            return;
+        }
+        var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+        var combo = new HotkeyCombo(HotkeyModifiersOf(Keyboard.Modifiers), virtualKey);
+        CaptureAttempted?.Invoke(combo);
+    }
+
+    private static HotkeyModifiers HotkeyModifiersOf(ModifierKeys modifiers)
+    {
+        var result = HotkeyModifiers.None;
+        if (modifiers.HasFlag(ModifierKeys.Control)) result |= HotkeyModifiers.Control;
+        if (modifiers.HasFlag(ModifierKeys.Alt)) result |= HotkeyModifiers.Alt;
+        if (modifiers.HasFlag(ModifierKeys.Shift)) result |= HotkeyModifiers.Shift;
+        if (modifiers.HasFlag(ModifierKeys.Windows)) result |= HotkeyModifiers.Win;
+        return result;
     }
 }

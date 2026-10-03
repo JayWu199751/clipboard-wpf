@@ -1,0 +1,28 @@
+{
+  "说明": "判据 3 参照资产：DIB 样例经 legacy 解码/编码链产出。本机无旧版管线产出的现存 PNG 实件，参照 PNG 由 legacy 算法直接运行生成——见 REPORT.md『生成方式』。",
+  "生成方式": "rust-reference/：legacy dib.rs 原封复制（sha256 1a5ad36d5403519915e23fcbda3bcbb8209a9bf456fd3b8c6bff18e6c2a01280）+ image 0.25.10（Cargo.toml 语义版本 image=0.25 png feature，与 legacy 相同）",
+  "生成日期": "2026-10-03",
+  "样例输入": "rust-reference/gen_samples.py（与 legacy tests 的 dib() 蓝本逐语义对应）",
+  "samples": [
+    {
+      "name": "v0-rgb-24bpp-bottomup",
+      "形状": "40 头 + 24bpp BI_RGB 3×2 自下而上",
+      "pngSha1": "ff8f609551ec4de359b20a45cdbf215dcb21b753"
+    },
+    {
+      "name": "v0-rgb-32bpp-bottomup",
+      "形状": "40 头 + 32bpp BI_RGB 2×1 自下而上（A 强制 255）",
+      "pngSha1": "9b9c188109fc9b834e11a68a25e0b4edbbe94c2c"
+    },
+    {
+      "name": "v5-bitfields-alpha-topdown",
+      "形状": "124 头 + 32bpp BI_BITFIELDS 四掩码（含 alpha）3×2 自上而下",
+      "pngSha1": "1480b4766e18b4349bd26a8b38429aeb7bc5b2bd"
+    },
+    {
+      "name": "v5-rgb-alpha-bottomup",
+      "形状": "124 头 + 32bpp BI_RGB + alphaMask 0xff000000 2×2 自下而上（PixPin 回归形状）",
+      "pngSha1": "c8e7e11ef6819e35f77efba18213be4b3c8dfdf4"
+    }
+  ]
+}

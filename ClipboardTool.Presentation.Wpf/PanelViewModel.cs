@@ -163,9 +163,34 @@ public sealed class PanelViewModel : INotifyPropertyChanged
         ApplySearchQuery(_appliedQuery, resetSelection: false);
     }
 
-    /// <summary>整表重载：全量快照替换并重放当前查询（监听线程的变更事件已由订阅方归队 UI）。</summary>
+    /// <summary>
+    /// 共享缩略图缓存（T06）：App 构造注入（解码后台线程、回调归队 Dispatcher）。
+    /// 缓存自身双上限与失效规则见 Infrastructure.ThumbnailCache；条目集合变化时
+    /// 已消失的 id 在此立即失效（移除/裁剪/清空统一走 Reload 差量）。
+    /// </summary>
+    public Infrastructure.Windows.ThumbnailCache? Thumbnails { get; private set; }
+
+    public void SetThumbnailCache(Infrastructure.Windows.ThumbnailCache cache)
+    {
+        Thumbnails = cache;
+        OnPropertyChanged(nameof(Thumbnails));
+    }
+
+    /// <summary>整表重载：全量快照替换并重放当前查询（监听线程的变更事件已由订阅方归队 UI）；
+    /// 差量出已消失的条目 id → 缩略图缓存立即失效（移除/裁剪/清空联动，F05）。</summary>
     public void Reload(IReadOnlyList<HistoryEntry> entries)
     {
+        if (Thumbnails is { } cache && _allEntries.Count > 0)
+        {
+            var current = new HashSet<string>(entries.Select(entry => entry.Id));
+            foreach (var entry in _allEntries)
+            {
+                if (!current.Contains(entry.Id))
+                {
+                    cache.Remove(entry.Id);
+                }
+            }
+        }
         _allEntries = entries;
         ApplySearchQuery(_appliedQuery, resetSelection: false);
     }
@@ -215,8 +240,25 @@ public sealed class PanelViewModel : INotifyPropertyChanged
     public string? SelectedItemId =>
         SelectedIndex >= 0 && SelectedIndex < Items.Count ? Items[SelectedIndex].Id : null;
 
-    private static CardViewModel CreateCard(HistoryEntry entry, string query)
+    /// <summary>
+    /// 容器选择回写（鼠标点选），T09 Del 竞态复核的修复点：条目重建（Items.Clear）与
+    /// Recycling 容器换绑引发的 SelectionChanged 会把 -1 噪音写回选中索引，落在两次
+    /// Del 之间时 SelectedItemId 短暂变 null、键动作落空（T06 观察点机理）。列表非空时
+    /// -1 是重建噪音被忽略——本面板不存在「列表非空且取消选中」的用户场景
+    /// （SelectionMode=Single、点击外部即停靠不取消选中）；列表为空时 -1 必须同步。
+    /// </summary>
+    public void SyncSelectionFromContainer(int containerIndex)
     {
+        if (containerIndex < 0 && Items.Count > 0)
+        {
+            return;
+        }
+        SelectedIndex = containerIndex;
+    }
+
+    private CardViewModel CreateCard(HistoryEntry entry, string query)
+    {
+        var isImage = entry.Type == EntryKind.Image;
         var body = entry.Type == EntryKind.Text ? entry.Text ?? string.Empty : string.Empty;
         var note = entry.Note ?? string.Empty;
         return new CardViewModel(
@@ -226,12 +268,24 @@ public sealed class PanelViewModel : INotifyPropertyChanged
             FormatMeta(entry),
             entry.Pinned,
             SearchRules.Highlight(body, query),
-            SearchRules.Highlight(note, query));
+            SearchRules.Highlight(note, query),
+            isImage,
+            entry.ImagePath,
+            // 文件名行（F42）：图卡 mono 文件名 = 磁盘真名 <id>.png（契约收口 ImageFileNames）
+            isImage ? ImageFileNames.ForId(entry.Id) : string.Empty);
     }
 
-    /// <summary>Meta 行时间段（T02 起；来源段与图片卡归 T06，图钉/备注段本票）。</summary>
-    private static string FormatMeta(HistoryEntry entry) =>
-        DateTimeOffset.FromUnixTimeMilliseconds(entry.CreatedAtMs).LocalDateTime.ToString("MM-dd HH:mm");
+    /// <summary>Meta 行（F42：来源·时间，图钉/备注/编辑为后续段；来源缺失显示「未知来源」与 legacy 同口径）。</summary>
+    private static string FormatMeta(HistoryEntry entry)
+    {
+        var source = entry.SourceApp?.AppName.Trim();
+        if (string.IsNullOrEmpty(source))
+        {
+            source = "未知来源";
+        }
+        var time = DateTimeOffset.FromUnixTimeMilliseconds(entry.CreatedAtMs).LocalDateTime.ToString("MM-dd HH:mm");
+        return $"{source} · {time}";
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -245,6 +299,7 @@ public sealed class PanelViewModel : INotifyPropertyChanged
 /// 卡片视图模型：Spans/NoteSpans 为正文与备注的高亮片段（F23「正文与备注命中高亮」，原文可拼回）；
 /// Pinned 供 meta 行图钉（F24：HUD 只以图钉显示，无独立置顶分组标题）；
 /// Body 为完整正文原样（展示层裁三行，不改正文，F01）。无查询时整段单片段、不着色。
+/// 图片卡（T06，F42–F44）：IsImage 分支渲染缩略图 + mono 文件名行；正文区收起。
 /// </summary>
 public sealed record CardViewModel(
     string Id,
@@ -253,13 +308,19 @@ public sealed record CardViewModel(
     string Meta,
     bool Pinned,
     IReadOnlyList<HighlightSpan> Spans,
-    IReadOnlyList<HighlightSpan> NoteSpans)
+    IReadOnlyList<HighlightSpan> NoteSpans,
+    bool IsImage = false,
+    string? ImagePath = null,
+    string FileName = "")
 {
     public bool HasNote => Note.Length > 0;
 }
 
 /// <summary>toast 一条（F46）：成功绿勾/错误红叉 + 消息 + 次级 dim + 可选动作（撤销）。
-/// Entering 支撑入场动画（240ms）：入栈时 true，窗口在布局就绪后置 false 触发淡入。</summary>
+/// Entering 支撑入场动画（240ms）：入栈时 true，窗口在布局就绪后置 false 触发淡入。
+/// F48：Announcement 是 Narrator 播报文本（错误前缀/动作/dim 并入一句，锚在 Message
+/// 文本块的 AutomationProperties.Name 上）；Animated=false（系统减少动态）时 XAML
+/// 不播入场/离场过渡，直接落地/消失。</summary>
 public sealed class ToastViewModel : INotifyPropertyChanged
 {
     private bool _entering = true;
@@ -274,6 +335,12 @@ public sealed class ToastViewModel : INotifyPropertyChanged
     public string? ActionLabel { get; init; }
 
     public Action? OnAction { get; init; }
+
+    /// <summary>Narrator 播报文本（F48）；由 ToastAnnouncement 在入栈时拼定。</summary>
+    public string Announcement { get; init; } = string.Empty;
+
+    /// <summary>是否播放过渡动画（F48：系统减少动态时为 false，入栈时按策略赋值）。</summary>
+    public bool Animated { get; init; } = true;
 
     /// <summary>入场中（入栈后由窗口置 false，触发 240ms 淡入）。</summary>
     public bool Entering

@@ -1,0 +1,3 @@
+setup-exit=0 instdir=True task-survived=True task-time-before=10/04/2026 03:53:14 after=10/04/2026 03:53:14
+启动后: 03:54:23.281 计划任务收敛 action=None ok=True
+regkey=True

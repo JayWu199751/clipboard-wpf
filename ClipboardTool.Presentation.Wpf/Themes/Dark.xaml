@@ -28,4 +28,6 @@
 
     <SolidColorBrush x:Key="Brush.Ring.Soft" Color="#1F7B77E0" />
 
+    <!-- 图卡棋盘格（F42）：对齐 theme.css 的 checker 变量 rgba(255,255,255,0.03)；渐变底两主题共用写死色值（design-system 钉过不动） -->
+    <SolidColorBrush x:Key="Brush.Thumb.Checker" Color="#08FFFFFF" />
 </ResourceDictionary>

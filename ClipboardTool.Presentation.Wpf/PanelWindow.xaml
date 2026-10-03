@@ -22,6 +22,33 @@
         <local:CompactValueConverter x:Key="CompactValue" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
+        <!-- 图卡棋盘格底（F42）：16 DIP 瓦片 = 8 DIP 方格 ×2，方格色 Brush.Thumb.Checker 随主题；
+             渐变底 #2A2A40→#1A1A24 为 design-system 钉死的写死色值（两主题共用，不做 token 化） -->
+        <LinearGradientBrush x:Key="Thumb.Base" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Offset="0" Color="#2A2A40" />
+            <GradientStop Offset="1" Color="#1A1A24" />
+        </LinearGradientBrush>
+        <DrawingBrush x:Key="Thumb.Checker"
+                      TileMode="Tile" ViewportUnits="Absolute" Viewport="0,0,16,16">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="{StaticResource Thumb.Base}">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,16,16" />
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="{DynamicResource Brush.Thumb.Checker}">
+                        <GeometryDrawing.Geometry>
+                            <GeometryGroup>
+                                <RectangleGeometry Rect="0,0,8,8" />
+                                <RectangleGeometry Rect="8,8,8,8" />
+                            </GeometryGroup>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
         <!-- 卡片容器：CornerRadius12、1 DIP 细线（Border.Subtle）、上下12/左右16；hover 仅细边加深。
              Padding/Margin 显式清零 + Stretch：ListBoxItem 默认 Padding=1 会让卡片内缩、
              右细线在 175% DPI 的亚像素相位下被背景吞掉，左右边距不再对称 -->
@@ -118,6 +145,7 @@
                                          VerticalContentAlignment="Center"
                                          Padding="0"
                                          IsReadOnly="True"
+                                         AutomationProperties.Name="{x:Static local:AccessibilityNames.SearchInput}"
                                          TextChanged="OnSearchBoxTextChanged" />
                                 <TextBlock Text="{Binding PlaceholderText}"
                                            FontSize="13.5"
@@ -136,7 +164,9 @@
                                 </TextBlock>
                             </Grid>
 
-                            <!-- 清除按钮：仅搜索态且有查询时出现；点击清查询并保留输入焦点（F23） -->
+                            <!-- 清除按钮：仅搜索态且有查询时出现；点击清查询并保留输入焦点（F23）；
+                                 纯图形无文本，F48 显式命名；Focusable=False 与 legacy 一致（鼠标专用，
+                                 焦点留在搜索框），IsFocused 触发器保留为完整视觉状态 -->
                             <Button x:Name="SearchClear"
                                     Grid.Column="2"
                                     Width="16" Height="16"
@@ -144,12 +174,15 @@
                                     VerticalAlignment="Center"
                                     Visibility="Collapsed"
                                     Focusable="False"
+                                    AutomationProperties.Name="{x:Static local:AccessibilityNames.SearchClear}"
                                     PreviewMouseLeftButtonDown="OnSearchClearPress">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="ClearBg"
                                                 Background="Transparent"
-                                                CornerRadius="8">
+                                                CornerRadius="8"
+                                                BorderThickness="1"
+                                                BorderBrush="Transparent">
                                             <Viewbox Width="10" Height="10">
                                                 <Canvas Width="24" Height="24">
                                                     <Line X1="5" Y1="5" X2="19" Y2="19"
@@ -164,6 +197,9 @@
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter TargetName="ClearBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                            </Trigger>
+                                            <Trigger Property="IsFocused" Value="True">
+                                                <Setter TargetName="ClearBg" Property="BorderBrush" Value="{DynamicResource Brush.Border.Selected}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -218,6 +254,7 @@
                          Background="Transparent"
                          BorderThickness="0"
                          Padding="0"
+                         AutomationProperties.Name="{x:Static local:AccessibilityNames.HistoryList}"
                          PreviewMouseDoubleClick="OnCardDoubleClick"
                          SelectionChanged="OnListSelectionChanged"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -225,6 +262,8 @@
                          VirtualizingPanel.IsVirtualizing="True"
                          VirtualizingPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
+                         VirtualizingPanel.CacheLength="1,1"
+                         VirtualizingPanel.CacheLengthUnit="Item"
                          SelectionMode="Single">
                     <ListBox.Resources>
                         <!-- 隐藏滚动条且不占布局（Collapsed 而非 Hidden：后者仍保留轨道宽度，
@@ -243,16 +282,45 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel>
-                                <!-- 正文最多三行裁剪（原型 line-clamp；完整正文在备注/粘贴里原样，F01）；
-                                     命中片段 accent-soft 底色（F23，附加属性渲染高亮 Run） -->
-                                <TextBlock local:HighlightText.Spans="{Binding Spans}"
-                                           FontSize="13"
-                                           LineHeight="20.15"
-                                           LineStackingStrategy="BlockLineHeight"
-                                           MaxHeight="60.45"
-                                           TextWrapping="Wrap"
+                                <!-- 缩略图（F42）：150 DIP contain 居中、6 DIP 圆角、棋盘格底、1 DIP 细线；
+                                     仅图片卡渲染；共享缓存按 Id 记忆化（P4 结论），宿主做 id/代次防错图 -->
+                                <local:ThumbnailHost Height="150"
+                                                     Margin="0,0,0,12"
+                                                     Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibility}}"
+                                                     Background="{StaticResource Thumb.Checker}"
+                                                     BorderBrush="{DynamicResource Brush.Border.Subtle}"
+                                                     BorderThickness="1"
+                                                     Cache="{Binding DataContext.Thumbnails, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                     EntryId="{Binding Id}"
+                                                     ImagePath="{Binding ImagePath}" />
+                                <!-- 文件名行（F42）：mono 12 号单行省略；缩略图→文件名的 12 DIP 间距归缩略图 Margin -->
+                                <TextBlock Text="{Binding FileName}"
+                                           FontFamily="{StaticResource Font.Mono}"
+                                           FontSize="12"
                                            TextTrimming="CharacterEllipsis"
-                                           Foreground="{DynamicResource Brush.Text.Primary}" />
+                                           Foreground="{DynamicResource Brush.Text.Secondary}"
+                                           Visibility="{Binding IsImage, Converter={StaticResource BoolToVisibility}}" />
+                                <!-- 正文最多三行裁剪（原型 line-clamp；完整正文在备注/粘贴里原样，F01）；
+                                     命中片段 accent-soft 底色（F23，附加属性渲染高亮 Run）；图片卡正文区收起 -->
+                                <TextBlock>
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="local:HighlightText.Spans" Value="{Binding Spans}" />
+                                            <Setter Property="FontSize" Value="13" />
+                                            <Setter Property="LineHeight" Value="20.15" />
+                                            <Setter Property="LineStackingStrategy" Value="BlockLineHeight" />
+                                            <Setter Property="MaxHeight" Value="60.45" />
+                                            <Setter Property="TextWrapping" Value="Wrap" />
+                                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                            <Setter Property="Foreground" Value="{DynamicResource Brush.Text.Primary}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsImage}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <!-- meta 行（F42/F24/F47）：时间·图钉·备注 单行省略，高 16；
                                      编辑中整行让位给内联编辑框（两层等高 → 卡片与滚动几何零位移） -->
                                 <Grid Height="16" Margin="0,8,0,0">
@@ -338,6 +406,7 @@
                                                  Padding="7,0"
                                                  VerticalContentAlignment="Center"
                                                  MaxLength="{x:Static panelModes:PanelFooterRegistry.MaxNoteLength}"
+                                                 AutomationProperties.Name="{x:Static local:AccessibilityNames.NoteEditor}"
                                                  FocusVisualStyle="{x:Null}"
                                                  PreviewKeyDown="OnNoteBoxKeyDown"
                                                  LostFocus="OnNoteBoxLostFocus"
@@ -375,6 +444,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
+                            <!-- F48：Message 文本块锚定播报（Name=Announcement 含错误前缀/动作/dim，
+                                 LiveSetting=Polite 让 Narrator 主动播报状态）；普通 Border 无 peer，
+                                 播报必须锚在有 peer 的文本块上 -->
                             <Border Height="34"
                                     Padding="14,0,8,0"
                                     Margin="0,4,0,0"
@@ -386,10 +458,15 @@
                                     <Style TargetType="Border">
                                         <Setter Property="Opacity" Value="1" />
                                         <Style.Triggers>
-                                            <!-- 入场：入栈时 Entering=True 保持透明，置 False 触发 240ms 淡入（F46） -->
-                                            <DataTrigger Binding="{Binding Entering}" Value="True">
+                                            <!-- 入场（F46 入栈 240ms 淡入）：Entering 置 False 触发；
+                                                 Animated=False（系统减少动态 F48）时不藏起也不播动画，直接可见 -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Entering}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Opacity" Value="0" />
-                                                <DataTrigger.ExitActions>
+                                                <MultiDataTrigger.ExitActions>
                                                     <!-- BeginStoryboard.Storyboard 只接受 Storyboard 类型，动画必须包一层（否则模板解析炸、炸断整条刷新链） -->
                                                     <BeginStoryboard>
                                                         <Storyboard>
@@ -397,20 +474,31 @@
                                                                              To="1" Duration="0:0:0.24" />
                                                         </Storyboard>
                                                     </BeginStoryboard>
-                                                </DataTrigger.ExitActions>
-                                            </DataTrigger>
-                                            <!-- 离场：160ms 淡出后由窗口移除 -->
-                                            <DataTrigger Binding="{Binding Leaving}" Value="True">
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
+                                            <!-- 离场：Animated=True 走 160ms 淡出；False 直接消失（随后由窗口移除） -->
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Leaving}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Opacity" Value="0" />
-                                                <DataTrigger.EnterActions>
+                                                <MultiDataTrigger.EnterActions>
                                                     <BeginStoryboard>
                                                         <Storyboard>
                                                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                                              To="0" Duration="0:0:0.16" />
                                                         </Storyboard>
                                                     </BeginStoryboard>
-                                                </DataTrigger.EnterActions>
-                                            </DataTrigger>
+                                                </MultiDataTrigger.EnterActions>
+                                            </MultiDataTrigger>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Leaving}" Value="True" />
+                                                    <Condition Binding="{Binding Animated}" Value="False" />
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Opacity" Value="0" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </Border.Style>
@@ -453,6 +541,8 @@
                                                Margin="8,0,0,0"
                                                FontSize="12"
                                                VerticalAlignment="Center"
+                                               AutomationProperties.Name="{Binding Announcement}"
+                                               AutomationProperties.LiveSetting="Polite"
                                                Foreground="{DynamicResource Brush.Text.Primary}" />
                                     <TextBlock Text="{Binding Dim}"
                                                Margin="6,0,0,0"
@@ -481,6 +571,10 @@
                                                 <ControlTemplate.Triggers>
                                                     <Trigger Property="IsMouseOver" Value="True">
                                                         <Setter TargetName="ToastActionBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                                    </Trigger>
+                                                    <!-- F48 键盘焦点环：撤销按钮可被键盘聚焦时显示完整环 -->
+                                                    <Trigger Property="IsFocused" Value="True">
+                                                        <Setter TargetName="ToastActionBg" Property="BorderBrush" Value="{DynamicResource Brush.Accent.Text}" />
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -591,6 +685,40 @@
                         </Grid>
                     </Grid>
                 </Border>
+                <!-- 捕获覆盖层（F31）：捕获态全让位（全局键由状态机注销），录入新呼出键的编辑器层。
+                     提示文案与状态由宿主按判定结果下发；Esc 取消在窗口级 PreviewKeyDown 拦截 -->
+                <Grid x:Name="CaptureOverlay"
+                      Grid.Row="0" Grid.RowSpan="3"
+                      Background="{DynamicResource Brush.App}"
+                      Visibility="Collapsed"
+                      IsHitTestVisible="True">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="320">
+                        <TextBlock Text="按下新的快捷键组合"
+                                   FontSize="15"
+                                   FontWeight="Medium"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Primary}" />
+                        <TextBlock Text="需要包含 Ctrl / Alt / Win 修饰键"
+                                   Margin="0,8,0,0"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Secondary}" />
+                        <TextBlock x:Name="CaptureStatusText"
+                                   Margin="0,16,0,0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   AutomationProperties.Name="{x:Static local:AccessibilityNames.CaptureStatus}"
+                                   Foreground="{DynamicResource Brush.Text.Primary}" />
+                        <TextBlock Text="Esc 取消"
+                                   Margin="0,16,0,0"
+                                   FontFamily="{StaticResource Font.Mono}"
+                                   FontSize="10.5"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource Brush.Text.Tertiary}" />
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 

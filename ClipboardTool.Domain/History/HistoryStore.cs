@@ -19,7 +19,7 @@ public sealed class HistoryStore
     private readonly Func<string> _newId;
     private readonly Func<long> _nowMs;
     private readonly List<HistoryEntry> _entries = [];
-    // 图片内容哈希缓存：entry.id -> sha1（图片文件创建后不会变化）
+    // 图片规范化像素哈希缓存（ADR-0005 第 4 条）：entry.id -> sha1（图片文件创建后不会变化）
     private readonly Dictionary<string, string> _imageHashCache = [];
     private readonly object _gate = new();
 
@@ -111,8 +111,9 @@ public sealed class HistoryStore
         }
     }
 
-    /// <summary>图片复制进历史（F03/F05 图片侧规则；DIB→PNG 解码归 T06）：
-    /// 身份按 PNG 内容 SHA-1。命中 → 提升且不写新文件；未命中 → 经端口写盘后插入。
+    /// <summary>图片复制进历史（F03/F05 图片侧规则；解码与编码归 Infrastructure）：
+    /// 身份按规范化像素 SHA-1（ADR-0005 第 4 条，经端口取哈希——旧版与新版编码同像素同身份）。
+    /// 命中 → 提升且不写新文件；未命中 → 经端口写盘后插入。
     /// 写盘失败返回 Entry null，调用方不更新轮询基线（下次轮询重试）。</summary>
     public RecordOutcome RecordImage(byte[] png, SourceApp? sourceApp = null)
     {
@@ -122,7 +123,7 @@ public sealed class HistoryStore
             {
                 return new RecordOutcome(null, false);
             }
-            var hash = ContentHash.Sha1Hex(png);
+            var hash = _images.HashPng(png);
             var match = MatchImageHashLocked(hash);
             if (match is not null)
             {
@@ -145,7 +146,7 @@ public sealed class HistoryStore
         }
     }
 
-    /// <summary>图片身份匹配（F03）：按注入端口取文件哈希（带 id 缓存）与给定哈希比对；
+    /// <summary>图片身份匹配（F03）：按注入端口取文件规范化哈希（带 id 缓存）与给定哈希比对；
     /// 空哈希永不命中。测试与 T06 记录路径共用。</summary>
     internal HistoryEntry? MatchImageHash(string hash)
     {

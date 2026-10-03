@@ -1,0 +1,4 @@
+    $priv = 0; $ws = 0; $handles = 0; $cpuMs = 0.0
+    foreach ($procId in $treePids) {
+        try {
+            $p = Get-Process -Id $procId -ErrorAction Stop

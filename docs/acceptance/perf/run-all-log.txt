@@ -1,0 +1,8 @@
+数据集就绪：条目 200（置顶 5，图片 8，含 4000x3000 大图 1），PNG 8 个 / 0.9 MB
+轮完成：.\perf-results\old-tauri-debug-round1.csv（样本 141，树规模峰值 5，残留 无）
+轮完成：.\perf-results\new-wpf-release-round1.csv（样本 150，树规模峰值 1，残留 无）
+轮完成：.\perf-results\old-tauri-debug-round2.csv（样本 141，树规模峰值 5，残留 无）
+轮完成：.\perf-results\new-wpf-release-round2.csv（样本 150，树规模峰值 1，残留 无）
+轮完成：.\perf-results\old-tauri-debug-round3.csv（样本 142，树规模峰值 5，残留 无）
+轮完成：.\perf-results\new-wpf-release-round3.csv（样本 150，树规模峰值 1，残留 无）
+三轮完成。汇总中位见各 -summary.csv；报告与结论见同目录 04-性能对比报告.md

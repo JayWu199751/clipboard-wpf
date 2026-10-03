@@ -30,6 +30,7 @@
 | T07 | F26–F34 | 三态主题、托盘图标五档、换键捕获、单实例、清空历史 |
 | T08 | F35–F38、F39–F40（收尾） | 提权清单、静默任务、登录触发器、NSIS 安装/升级/卸载 |
 | T09 | F48 + 全量 | 无障碍、性能前后对比、验收矩阵逐项、切换回退演练 |
+| 16（终审） | F17（①③；②由 P5/T01 达成） | 单击外部停靠与点击时间窗（ExternalClickRules/MouseHook/DockIfClickedOutside），终审两轴评审补齐 |
 
 依赖：T01←SDK/窗口试验；T02←T01；T03←T02；T04←T03；T05←T04；T06←T03+DIB/虚拟化试验；T07←T04+IPC 决策；T08←T07；T09←T05/T06/T08。
 
@@ -131,4 +132,33 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   遗留记录：PanelFooterRegistry 落点补记；E2eT02 诊断失真归 T08；启动诊断日志（26a0022）真机验证后移除。
   真机人工项（Del 撤销/多条互不干扰/跨停靠计时/强退保留/备注几何/emoji/窄窗页脚）见 06 票。
   06 票 Execution 已置 resolved；07（P3）/08（P4）/10（P5）可开工；09（T06）仍阻塞于 07/08。
-- 下一步前沿：07（P3 DIBV5）/08（P4 虚拟化）/10（P5 跨 DPI）试验票可立即开工。
+- 2026-10-03：**P3 DIBV5 解码试验通过（合并 7dab3eb）**：12 例字节矩阵（头 40/52/56/108/124 × 格式 × 行序 × 对齐）逐例与 legacy 一致 + 跨实现强验证 4/4；V5 alphaMask/四掩码/缺省 255 全验；31 例畸形数据拒绝不崩。
+  **PNG 哈希不兼容（4/4）→ 身份判定改规范化 RGBA SHA-1**（PNG 解码 → Bgra32 非预乘 → SHA-1，新旧 PNG 通吃、id/文件名不迁移），落 [ADR-0005](../../docs/adr/0005-DIB解码与PNG编码参数.md)；WIC 同进程编码确定性已钉。
+  56/56 原型测试两轮全绿，主方案 215/215 不回退。T06 踩坑移交：WPF 取像素必须 Bgra32 非预乘（Pbgra32 预乘有不可逆精度损失）。
+  真机待人工（旧版实件逐字节比对、截图工具实拍 alpha、WIC 跨进程确定性）见 [07 票证据记录](issues/07-P3DIBV5透明截图试验.md)。07 票 Execution 已置 resolved。
+- 2026-10-03：**P4 变高卡片虚拟化试验通过（合并 aa09ac4）**：200 混合卡分页真实滚动——解码请求 65≤67（按 Id 记忆化，往返增量 0）、高频导航 200 步均 8.8–21.8ms/步（阈值 40）选中项全程完整可见、变高漂移 |Δ|=0.00 DIP、Home 回初始 12 DIP 留白偏移 0；**Recycling 可靠：全程仅 6 容器实例承载 200 条，换绑快照 5 实例换绑不同 index**。
+  09 票配置结论：沿用 VSP+Recycling+ScrollUnit=Pixel；缩略图解码按 Id 记忆化；顶端/底距放 ListBox Margin（滚动区外恒定）；**Recycling 是行为级属性：换绑后焦点容器不对应原条目，焦点/导航锚定选中项而非焦点元素**（实测踩坑：聚焦错容器把视口拉到列表尾）；容器计数法（distinct InstanceId+换绑快照）保留为回归证据。
+  10/10 自检两轮全绿（合并后主线复跑 10/10），主方案 215/215 不回退。未覆盖项（滚轮/触摸惯性、插入置顶、过滤骤变、内存曲线、异步慢解码源）见 [08 票证据](issues/08-P4变高卡片虚拟化试验.md)，Execution 已置 resolved。
+- 2026-10-03：**P5 跨 DPI 圆角穿透试验通过（合并 22b282f）**：穿透机制=分层窗口逐像素 alpha（AllowsTransparency 0 alpha 区）+ WM_NCHITTEST 钩子（弧内 HTCLIENT/弧外 HTTRANSPARENT；纯函数 CornerHitGeometry，radius 36 DIP × GetDpi 实时值，lParam 必须有符号解析）；175% 真机弧扫 64 点全一致 + 真实点击把边界夹紧到 ±4%R；浏览态/输入态全过；负坐标经移窗 (-300,-200)+有符号 lParam 消息级验证（模拟）。
+  **11 票接入红线（ADR-0006）：禁止整窗 WS_EX_TRANSPARENT；HTTRANSPARENT 只能当 fringe 防误触的丢弃语义——真实点击跨窗口转发不可靠（实测）；WindowFromPoint 尊重 HTTRANSPARENT，不能用它推断真实点击路由**。
+  几何单测 19/19（主线复验）、自检连续两轮 17/17（含跨带归因控制）、主方案 215/215。真机待人工（100/125/150% 运行时、真实多屏负坐标、物理鼠标/触屏、IME 组合点角外）见 [10 票证据](issues/10-P5跨DPI圆角穿透试验.md)，Execution 已置 resolved。
+- 2026-10-03：**T06 图片链路完成（合并 35e5e3e）**：DibDecoder/PngEncoder 正式化（P3 蓝本 56 例迁入主测试）+ 身份判定改**规范化 RGBA SHA-1**（ADR-0005，旧 image crate 与新 WIC 编码同像素同身份，Bgra32 非预乘）；IImageFileStore.HashPng / IClipboardWriter.WriteImage（DIBV5 主格式保透明 + 40 头 DIB 兼容，绝不写文件路径）；ThumbnailCache 双上限 LRU（≤32 张/≤24 MiB 解码像素估算）按 Id 记忆化、失效含在途、代次防错图、停靠清缓存/呼出预热；图卡 150 DIP contain + 棋盘格底 + 文件名行；ContainerDiagnostics 环境变量门控（正常运行零开销）。
+  **E2E 43 项断言全过**（tools/E2eT09，真实存档备份恢复）：系统截图+合成透明截图（CF_DIB/DIBV5）入库像素零差异、同图重复制身份命中不重写文件、双击复制 CF_DIBV5 回读 153600 像素零差异；4K 混合 206 条滚动 139.9ms/批、realized 峰值 13=distinct 实例（Recycling 真机证据）；200 裁剪删 PNG 联动、清空后 images/ 零残留。
+  测试 302/302（215+87），构建零警告。待人工：画图/Office 目测观感（位图层已像素级验证）、Office 多格式复制；来源应用捕获 F06 未接线（meta 恒显未知来源，不在本票范围）。
+  **新观察点入档（交 T09/终评跟进）**：约 20 条撤销窗口并存且容器持续重建时个别 Del 无效（停靠排空后恢复，疑似 Items 重建竞态中 SelectedItemId 短暂失效）。09 票 Execution 已置 resolved。
+- 2026-10-04：**T07 系统集成完成（合并 01fd8a3 + 修复提交）**：合入 T06 E2E 成果（8fa0547）后真机 E2E **40/40 断言全过**（tools/E2eT07，注册表备份/恢复 + 数据目录备份/恢复 + 退出零残留），全量测试 397/397 绿、零警告。四判据全过：系统亮暗广播端到端（面板跟 AppsUseLightTheme、托盘跟 SystemUsesLightTheme，自定义模式两轴独立）+ 托盘像素证据；175% 选 28px 档 + 搜索中切主题保文本焦点；换键占用恢复/持久化/重启保留/捕获不让位；双实例呼出 + 普通→提权 ACL 投递（本机静默提权实测）。托盘「清空历史」真实右键路径全链路（3 条→0 条、images/ 空）。
+  **E2E 揪出三枚真缺陷并修复（各带回归测试）**：① 二实例呼出 UI 线程同步等待死锁（Task.Run + ConfigureAwait(false)）；② 单实例 Gate 被 GC 后 Mutex 终结器释放锁（RootedGates 钉住）；③ RegGetValueW 本机恒败 1630（换 RegQueryValueExW + REG_DWORD 校验）。次修正：IsPanelOnScreen 动态屏宽；E2E 托盘菜单走真实右键路径、flyout 用鼠标收起（Esc 会停靠已显面板）。
+  待人工：175% 托盘图标目测锐度、托盘变色像素复核（截图存 evidence-t07/）、他机提权 UAC。见 [11 票证据记录](issues/11-T07系统集成.md)。11 票 Execution 已置 resolved；12（T08）阻塞解除。
+- 2026-10-04：T07 分支合并入集成主线（合并 4d35502），主线独立复验 397/397 绿、构建零错误；evidence-t07 截图与 tools/E2eT07 随分支入库。
+- 2026-10-04：**T08 提权与安装完成（合并 dbef12d）**：425/425 测试绿（净增 28：启动通道三态逻辑/intent×factual 判定表 10 行/任务 XML 引号与触发器/清单断言）；真机三验全过——发布产物直启 TokenElevation=True、计划任务收敛三段（意图开→补触发器、意图关→移触发器保任务、已对齐→None）、NSIS 装→覆盖升级→卸载零残留 + 存档保留断言；安装包 60MB（自包含 141MB 压缩 42.7%，低于 ADR-0001 预期下沿）。
+  **真机修复三缺陷**：schtasks stdout 编码误判在册任务→改 Task Scheduler COM API；NSIS 键名改产品 GUID+SetRegView 64 防**覆盖旧 Tauri 遗留键**（ADR-0001 互不覆盖，旧键未动，控制面板双条目属切换路径解决）；先卸后装升级删计划任务→改覆盖安装。
+  待人工：重启后三路呼出（触发器已写入任务 XML，不重启用户机器）、schtasks /Run 目测、他机交互式 UAC、托盘开机启动 UI 点击链路。见 [12 票证据](issues/12-T08提权与安装.md)，Execution 已置 resolved。
+  T08→T09 交接：startup.log 诊断日志（%LOCALAPPDATA%\ClipboardTool\startup.log）F39/F40 收尾按 map 记录移除（26a0022）；任务 XML 用 COM 注册、卸载删任务在 NSIS 卸载器内；e2e-*.txt 取证随库。
+- 2026-10-04：**T09 收尾验收完成（合并 80652a4）**：436/436 测试绿（净增 11：无障碍语义/Del 竞态回归）；F48 无障碍落地（AutomationPeer/Properties、toast 播报、焦点环、减少动画 SPI 验证）；**F01–F48 验收矩阵 48 项全结论**（docs/acceptance/01-验收矩阵-F01-F48.md：22 通过 / 23 通过(部分待人工) / 1 待人工 F21 IME / 2 失败开票——[14 F06 来源应用接线缺失](issues/14-F06来源应用接线缺失.md)、[15 F40 完整诊断语义未实现](issues/15-F40完整诊断语义未实现.md)，startup.log 已按 26a0022 记录移除且冷启动无回归）。
+  **性能对比三轮中位**（docs/acceptance/perf/04-性能对比报告.md，旧=Tauri debug asInvoker vs 新=WPF Release asInvoker 同口径）：旧 5 进程 vs 新 1 进程；Private Bytes 95.6 vs 94.3MB（持平，呼出期 +11MB 缩略图缓存）；**工作集 314→160MB（−49%）**；句柄 −36%；CPU −40~80%。**正式内存门槛待用户拍板**（口径/指标冻结/提权 release 复跑，脚本就绪）。
+  Del 竞态复核**已修复**（88d4fb3）：Items 重建/Recycling 换绑时 SelectionChanged 把容器 -1 回写 SelectedIndex，SyncSelectionFromContainer 噪音过滤 + 3 例回归。迁移演练副本沙箱 6/6 PASS（旧→新→旧往返/坏档备份/写失败原件不动）；切换文档 docs/acceptance/02-切换与回退指南.md（正式切换由用户执行）。
+  待人工：F21 IME 真机、旧版提权正式口径复跑、重启后三路呼出、他机 UAC。13 票 Execution 已置 resolved。
+- 2026-10-04：**终审 code-review 完成（Standards 12 条 + Spec 1 项全部修复）**：Spec 轴发现 **F17 规划期漏排且矩阵误判**（单击外部停靠+点击时间窗零实现、矩阵引用 legacy 证据充当新实现证据）→ 开 [16 票](issues/16-F17单击外部停靠与点击时间窗缺失.md) 补齐：Domain.ExternalClickRules（三步判定+时间窗，9 例单测，legacy hides_on_click 逐条对齐）+ Infrastructure.MouseHook（WH_MOUSE_LL 回调只记录，ADR-0004 防线）+ PanelCoordinator.Show 记呼出时刻 + App.DockIfClickedOutside 归队 UI 线程停靠；E2E 判据 A/C/D 过，判据 B 本机无判别力（负控如实入档，判别性证据=Domain 单测，高负载真机留人工）；矩阵 F17 行按新证据改判。
+  Standards 12 条全修：二实例投递去 UI 线程 GetResult 阻塞（异步 fire-and-forget+完成回调 Shutdown）；WriteImage 失败语义（句柄先备齐、清空后失败返 false=旧内容不可恢复，5 例钉住）；设置单点 UpdateSettingsPersistFirst（失败不推进）；`<id>.png` 收口 Domain.ImageFileNames；明暗判定收敛 ThemeService；清空编排并入 HistoryService.Clear；WriteAndSync 泛型提取；AccessibilityMotion 失败兜底；杂项清理；RegistryThemeWatcher 注释如实；ThumbnailCache 三查并一；GLOSSARY 收录「欠账/图钉」。
+  **452/452 全绿（+16）、零警告**（合并前主线独立复验）。遗留：F17 时间窗竞态高负载真机；失败票 14（F06 来源应用）/15（F40 完整诊断）开放待做；正式内存门槛待用户拍板。
+- 当前前沿：**终审完成（13+1 票全 resolved，452/452 绿），集成线合回 main 收尾**；失败票 14/15 与内存门槛拍板为遗留事项。
