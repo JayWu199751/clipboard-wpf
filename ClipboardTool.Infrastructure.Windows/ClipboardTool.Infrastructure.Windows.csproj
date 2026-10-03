@@ -11,4 +11,9 @@
     <ProjectReference Include="..\ClipboardTool.Domain\ClipboardTool.Domain.csproj" />
   </ItemGroup>
 
+  <!-- 托盘图标资产（F29）：五档 16/20/24/28/32 × 亮暗两套 + 32px 基图，嵌入供 PngIconFactory 取用 -->
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Tray\*.png" />
+  </ItemGroup>
+
 </Project>

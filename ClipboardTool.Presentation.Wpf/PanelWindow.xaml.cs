@@ -6,6 +6,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using ClipboardTool.Application;
 using ClipboardTool.Domain.Geometry;
+using ClipboardTool.Domain.Hotkeys;
 using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.Search;
 using ClipboardTool.Infrastructure.Windows;
@@ -91,6 +92,8 @@ public partial class PanelWindow : Window
         // Esc 停靠是浏览态全局键（F18，让位模型）：由协调器差量注册后经 HandlePanelKey 到达
         HookCompositionEvents();
         SearchBox.PreviewKeyDown += OnSearchBoxPreviewKeyDown;
+        // 捕获覆盖层（F31）：窗口级隧道拦截，覆盖层可见时吃掉全部按键（捕获态无全局键）
+        PreviewKeyDown += OnCaptureOverlayPreviewKeyDown;
 
         var diagPath = Environment.GetEnvironmentVariable("CLIPBOARDTOOL_E2E_DIAG");
         if (!string.IsNullOrEmpty(diagPath))
@@ -683,5 +686,78 @@ public partial class PanelWindow : Window
         {
             ShowToast(result.Message, null, isError: true, actionLabel: null, onAction: null);
         }
+    }
+
+    // —— 捕获覆盖层（F31；legacy shortcutCapture 渲染态的移植） ——
+
+    /// <summary>捕获层录入到的新组合（校验通过的主键 + 修饰键；Esc 走取消事件不经此）。</summary>
+    public event Action<HotkeyCombo>? CaptureAttempted;
+
+    /// <summary>捕获取消（Esc）：状态机退出捕获态并发 capture-end，宿主据此收层。</summary>
+    public event Action? CaptureCancelled;
+
+    /// <summary>捕获覆盖层是否正在显示。</summary>
+    public bool IsCaptureOverlayVisible => CaptureOverlay.Visibility == Visibility.Visible;
+
+    /// <summary>显示捕获覆盖层（进入捕获态并呼出面板之后调用；焦点由宿主先聚到面板）。</summary>
+    public void ShowCaptureOverlay()
+    {
+        CaptureStatusText.Text = string.Empty;
+        CaptureOverlay.Visibility = Visibility.Visible;
+        Focus(); // 覆盖层不进 tab 序，窗口级 PreviewKeyDown 收键（宿主已清 NOACTIVATE）
+    }
+
+    /// <summary>收起捕获覆盖层（capture-end 事件与成功后延迟收层共用）。</summary>
+    public void HideCaptureOverlay() => CaptureOverlay.Visibility = Visibility.Collapsed;
+
+    /// <summary>状态行：失败（占用/无效/缺修饰）红叉色，成功默认色。</summary>
+    public void SetCaptureStatus(string text, bool ok)
+    {
+        CaptureStatusText.Text = text;
+        CaptureStatusText.Foreground = ok
+            ? (Brush)FindResource("Brush.Text.Primary")
+            : (Brush)FindResource("Brush.Error");
+    }
+
+    /// <summary>
+    /// 覆盖层可见时窗口级吃键：修饰键自身忽略（等主键）；Esc 取消；其余主键经 WPF Key →
+    /// 虚拟键码构造组合交给捕获判定（占用/无效/成功全部由状态机与宿主决定，本层只转换）。
+    /// </summary>
+    private void OnCaptureOverlayPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!IsCaptureOverlayVisible)
+        {
+            return;
+        }
+        e.Handled = true;
+        switch (e.Key)
+        {
+            case Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift
+                or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin:
+                return; // 修饰键按下本身不算录入，等主键
+            case Key.Escape:
+                CaptureCancelled?.Invoke();
+                return;
+            case Key.System:
+                break; // Alt 组合：真实键在 SystemKey
+        }
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key is Key.None)
+        {
+            return;
+        }
+        var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+        var combo = new HotkeyCombo(HotkeyModifiersOf(Keyboard.Modifiers), virtualKey);
+        CaptureAttempted?.Invoke(combo);
+    }
+
+    private static HotkeyModifiers HotkeyModifiersOf(ModifierKeys modifiers)
+    {
+        var result = HotkeyModifiers.None;
+        if (modifiers.HasFlag(ModifierKeys.Control)) result |= HotkeyModifiers.Control;
+        if (modifiers.HasFlag(ModifierKeys.Alt)) result |= HotkeyModifiers.Alt;
+        if (modifiers.HasFlag(ModifierKeys.Shift)) result |= HotkeyModifiers.Shift;
+        if (modifiers.HasFlag(ModifierKeys.Windows)) result |= HotkeyModifiers.Win;
+        return result;
     }
 }
