@@ -8,6 +8,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>P5RoundedHitTest</RootNamespace>
     <AssemblyName>P5RoundedHitProbe</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+
+  <!-- 单测归测试工程（P5GeometryTests.csproj），不进探针主程序 -->
+  <ItemGroup>
+    <Compile Remove="GeometryTests.cs" />
+  </ItemGroup>
 
 </Project>
