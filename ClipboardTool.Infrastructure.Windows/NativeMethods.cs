@@ -240,6 +240,36 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     public static extern bool DestroyWindow(IntPtr hwnd);
 
+    // —— 全局低级鼠标钩子（F17；legacy click_watcher.rs 同款 API 面） ——
+
+    public const int WH_MOUSE_LL = 14;
+    public const uint WM_RBUTTONDOWN = 0x0204;
+    public const uint WM_MBUTTONDOWN = 0x0207;
+    public const uint WM_XBUTTONDOWN = 0x020B;
+
+    public delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>LL 钩子的按下信息：物理像素坐标 + 注入标志等（本进程只读 pt）。</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSLLHOOKSTRUCT
+    {
+        public POINT pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public UIntPtr dwExtraInfo;
+    }
+
+    /// <summary>安装钩子。LL 钩子 hMod 传 Zero（钩子过程在本进程内）、线程 id 传 0。</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookExW(int idHook, HookProc lpfn, IntPtr hMod, uint dwThreadId);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
     [StructLayout(LayoutKind.Sequential)]
     public struct MSG
     {

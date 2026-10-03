@@ -67,6 +67,7 @@ public sealed class PanelCoordinator
     private string? _noteEntryId;
     private FocusTarget? _focusTarget; // 本次呼出期间的前台焦点快照（退出输入态复用，隐藏时消费）
     private HotkeyCombo? _toggle;      // 呼出快捷键（捕获期间临时注销，值不变）
+    private long? _shownAtMs;          // 最近一次呼出的时刻（单调毫秒，F17 时间窗防护基准）
     private readonly Dictionary<NavAction, IDisposable> _repeatTokens = []; // 活着的连发链（每键一条）
 
     public PanelCoordinator(IPanelModesHost host, IDelayScheduler? scheduler = null)
@@ -81,6 +82,9 @@ public sealed class PanelCoordinator
 
     /// <summary>输入态（搜索/备注/捕获）豁免「浏览态自动失焦」。</summary>
     public bool InputActive => _visible && _mode != PanelMode.Browse;
+
+    /// <summary>最近一次呼出的时刻（单调毫秒；F17：外部点击只有晚于它才可收起面板）。</summary>
+    public long? ShownAtMs => _shownAtMs;
 
     /// <summary>当前焦点快照（只读，不消费）。粘贴链路用它恢复原输入框；隐藏面板时才被消费清空。</summary>
     public FocusTarget? FocusTargetSnapshot => _focusTarget;
@@ -166,6 +170,9 @@ public sealed class PanelCoordinator
     /// </summary>
     public void Show()
     {
+        // 先记时刻再动状态（legacy show_on「先记 shown_at」同序）：这一瞬间之后的点击才是
+        // 「点了面板外」，之前的都是把面板开出来那一下（F17 时间窗防护）
+        _shownAtMs = Environment.TickCount64;
         _visible = true;
         if (_mode != PanelMode.ShortcutCapture)
         {

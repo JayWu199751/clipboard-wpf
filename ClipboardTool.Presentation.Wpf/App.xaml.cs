@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
     private PendingDeletionService? _deletion;
     private ThemeService? _theme;
     private TrayIconHost? _tray;
+    private MouseHook? _mouseHook;
     private JsonStore? _settingsStore;
     private AppSettings _settings = AppSettings.Default;
     private DispatcherTimer? _captureSuccessTimer;
@@ -159,6 +160,14 @@ public partial class App : System.Windows.Application
         _clipboardSource = new ClipboardMessageSource();
         _watch.Start(_clipboardSource);
 
+        // —— 单击外部停靠（F17）：全局低级鼠标钩子上报真实按下（回调只记录，ADR-0004），
+        //    判定（可见/时间窗/面板外）在 Domain.ExternalClickRules，命中走停靠编排。
+        //    事件在钩子转发线程触发，归队 UI 线程后与协调器状态同线程封闭判定。
+        _mouseHook = new MouseHook();
+        _mouseHook.Pressed += (x, y, atMs) =>
+            Dispatcher.BeginInvoke(() => DockIfClickedOutside(x, y, atMs));
+        _mouseHook.Start();
+
         // 键位计划由协调器按四态推导差量（F18–F21）：停靠态={呼出键}；呼出浏览态=呼出键+八导航键；
         // 搜索/备注/捕获按让位矩阵增删。注册动作在宿主 RegisterKey 里按动作分发（呼出/导航）。
         // 注意顺序：面板自身在 SourceInitialized 里先 Dock，此前协调器尚未给键；初始计划由
@@ -198,6 +207,7 @@ public partial class App : System.Windows.Application
         _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
         _hotkeys?.Dispose();
         _clipboardSource?.Dispose();
+        _mouseHook?.Dispose();
         _executor?.Dispose();
         base.OnExit(e);
     }
@@ -426,6 +436,30 @@ public partial class App : System.Windows.Application
 
     /// <summary>浏览态 Esc 停靠（宿主事件入口）。</summary>
     private void DockFromPanel() => DockPanel(restoreFocus: true);
+
+    /// <summary>
+    /// 单击面板外部 → 停靠（F17）：全局钩子上报的一次真实按下。判定全部在 Domain 纯规则
+    /// （ExternalClickRules.ShouldDockOnOutsideClick）：面板可见 + 点击晚于本次呼出
+    /// （时间窗防护：呼出瞬间的惯用手势不误收）+ 明确落在面板物理矩形外（矩形读不到不动作）。
+    /// 输入态不豁免（legacy hide 统一路径逐层退出）；多击连点每次按下判一次（legacy 口径）。
+    /// </summary>
+    private void DockIfClickedOutside(int x, int y, long clickedAtMs)
+    {
+        if (_panel is not { IsDocked: false } panel
+            || _coordinator is not { Visible: true } coordinator)
+        {
+            return; // 面板不可见：不动作
+        }
+        bool? inside = WindowPlacer.TryGetPhysicalRect(panel.Hwnd, out var rect)
+            ? ExternalClickRules.ContainsPoint(rect.Left, rect.Top, rect.Right, rect.Bottom, x, y)
+            : null;
+        if (!ExternalClickRules.ShouldDockOnOutsideClick(
+                panelVisible: true, coordinator.ShownAtMs, clickedAtMs, inside))
+        {
+            return;
+        }
+        DockPanel(restoreFocus: true);
+    }
 
     private void EnterSearch() => _ = _coordinator!.EnterInput(PanelMode.Search);
 

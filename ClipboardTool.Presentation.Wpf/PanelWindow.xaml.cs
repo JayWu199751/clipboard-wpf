@@ -107,7 +107,8 @@ public partial class PanelWindow : Window
     /// <summary>注入共享缩略图缓存（T06，App 构造后调用；仅图片卡使用，文字卡零开销）。</summary>
     public void SetThumbnailCache(ThumbnailCache cache) => _viewModel.SetThumbnailCache(cache);
 
-    private IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
+    /// <summary>窗口句柄（F17 外部点击判定取物理矩形用；EnsureHandle 保证已建）。</summary>
+    public IntPtr Hwnd => new WindowInteropHelper(this).EnsureHandle();
 
     /// <summary>
     /// 内层三行 Grid 按内圆角裁剪（对齐原型的 overflow:hidden + border-radius）。

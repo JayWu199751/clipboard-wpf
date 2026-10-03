@@ -57,6 +57,19 @@ public static class WindowPlacer
         return (rect.Left, rect.Top, rect.Right, rect.Bottom);
     }
 
+    /// <summary>窗口物理矩形读取（F17 外部点击判定的取数步）：窗口不存在或读不到返回 false
+    /// ——调用方据此把「判不出来」传给 Domain 规则（不动作，免得面板莫名收起）。</summary>
+    public static bool TryGetPhysicalRect(IntPtr hwnd, out (int Left, int Top, int Right, int Bottom) rect)
+    {
+        if (NativeMethods.IsWindow(hwnd) && NativeMethods.GetWindowRect(hwnd, out var r))
+        {
+            rect = (r.Left, r.Top, r.Right, r.Bottom);
+            return true;
+        }
+        rect = default;
+        return false;
+    }
+
     /// <summary>呼出落地三条件（legacy landing_verdict）：可见、位置尺寸与意图相符、整体落在目标屏工作区内。</summary>
     private static bool LandingVerdict(IntPtr hwnd, ScreenMetrics target, int x, int y, int width, int height)
     {
