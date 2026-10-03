@@ -24,18 +24,26 @@ public sealed class RegistryThemeWatcher : ThemeService.ISystemThemePort
     /// <summary>系统主题广播（注册表变更触发）。监听线程上触发。</summary>
     public event Action? ThemeChanged;
 
-    /// <summary>读 Personalize 下的一个 DWORD：缺键/类型不对返回 null。</summary>
+    /// <summary>读 Personalize 下的一个 DWORD：缺键/类型不对返回 null。
+    /// 经 RegOpenKeyW + RegQueryValueExW（.NET Registry 类同款 API）：本机环境的
+    /// RegGetValueW 恒返回 1630（读数恒 null → 亮暗判定永远浅色兜底），真机 E2E 实测后弃用。</summary>
     private static uint? ReadLightFlag(string valueName)
     {
-        var status = NativeMethods.RegGetValueW(
-            NativeMethods.HKEY_CURRENT_USER,
-            PersonalizeKey,
-            valueName,
-            NativeMethods.RRF_RT_REG_DWORD,
-            IntPtr.Zero,
-            out var data,
-            out _);
-        return status == 0 ? data : null;
+        if (NativeMethods.RegOpenKeyW(NativeMethods.HKEY_CURRENT_USER, PersonalizeKey, out var key) != 0)
+        {
+            return null; // 键打不开视同缺键（与 RegGetValueW 的失败口径一致）
+        }
+        try
+        {
+            var size = 4u; // DWORD 缓冲区大小，既是入参也是出参
+            var status = NativeMethods.RegQueryValueExW(
+                key, valueName, IntPtr.Zero, out var type, out var data, ref size);
+            return status == 0 && type == 4 /* REG_DWORD */ ? data : null;
+        }
+        finally
+        {
+            _ = NativeMethods.RegCloseKey(key);
+        }
     }
 
     /// <summary>启动监听（后台线程循环）。真机验证项：亮暗切换的广播时机与频率。</summary>

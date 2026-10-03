@@ -276,12 +276,13 @@ internal static class NativeMethods
     // ---------- 注册表主题键读取与监听（F26–F28） ----------
 
     public static readonly IntPtr HKEY_CURRENT_USER = new(unchecked((int)0x80000001));
-    public const int RRF_RT_REG_DWORD = 0x00000002;
     public const int REG_NOTIFY_CHANGE_LAST_SET = 0x00000004;
 
-    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    public static extern int RegGetValueW(IntPtr hkey, string lpSubKey, string lpValue,
-        int dwFlags, IntPtr pdwType, out uint pvData, out uint pcbData);
+    // RegGetValueW 在本机环境对所有调用约定返回 1630（.NET 自家的 Registry 类走的是
+    // RegQueryValueExW 且可用）——主题读数改用 RegOpenKeyW + RegQueryValueExW + RegCloseKey。
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+    public static extern int RegQueryValueExW(IntPtr hkey, string lpValueName, IntPtr lpReserved,
+        out uint lpType, out uint lpData, ref uint lpcbData);
 
     [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern int RegOpenKeyW(IntPtr hkey, string lpSubKey, out IntPtr phkResult);

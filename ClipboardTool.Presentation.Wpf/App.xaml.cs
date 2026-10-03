@@ -81,7 +81,10 @@ public partial class App : System.Windows.Application
         if (!gate.TryAcquire())
         {
             Log("已有实例在运行：投递呼出请求后退出");
-            var delivered = SummonClient.SummonAsync(summonPipe, timeoutMs: 5000).GetAwaiter().GetResult();
+            // 经线程池等待（不直接 GetResult）：本方法跑在 UI 线程的 Dispatcher 上下文上，
+            // 直接同步阻塞会让 await 续体排队回一个已被阻塞的 Dispatcher → 经典死锁。
+            var delivered = Task.Run(() => SummonClient.SummonAsync(summonPipe, timeoutMs: 5000))
+                .GetAwaiter().GetResult();
             Log($"呼出投递结果 delivered={delivered}");
             Shutdown(delivered ? 0 : 1);
             return;

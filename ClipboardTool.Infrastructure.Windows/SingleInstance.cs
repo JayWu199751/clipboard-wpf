@@ -26,6 +26,11 @@ public sealed class SingleInstanceGate : IDisposable
     private static readonly object LocallyHeldLock = new();
     private static readonly HashSet<string> LocallyHeld = new(StringComparer.Ordinal);
 
+    // 获锁 gate 的根集：gate 是普通对象，宿主若只把它放在局部变量里，GC 回收会终结内核
+    // Mutex（句柄关闭=锁释放）→ 单实例门失效，后续启动会整份跑起来（真机 E2E 实测的缺陷）。
+    // 获锁期间自持引用，Dispose 时移除；App 侧无需关心。
+    private static readonly List<SingleInstanceGate> RootedGates = [];
+
     private readonly Mutex _mutex;
     private readonly string _name;
     private readonly bool _createdNew;
@@ -69,6 +74,10 @@ public sealed class SingleInstanceGate : IDisposable
             if (_acquired)
             {
                 LocallyHeld.Add(_name);
+                lock (RootedGates)
+                {
+                    RootedGates.Add(this); // 根集保活：见 RootedGates 注释
+                }
             }
             return _acquired;
         }
@@ -82,6 +91,10 @@ public sealed class SingleInstanceGate : IDisposable
             lock (LocallyHeldLock)
             {
                 LocallyHeld.Remove(_name);
+            }
+            lock (RootedGates)
+            {
+                RootedGates.Remove(this);
             }
             _acquired = false;
         }
@@ -203,9 +216,9 @@ public static class SummonClient
             {
                 using var pipe = new NamedPipeClientStream(
                     ".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
-                await pipe.ConnectAsync(Math.Min(ProbeTimeoutMs, timeoutMs));
+                await pipe.ConnectAsync(Math.Min(ProbeTimeoutMs, timeoutMs)).ConfigureAwait(false);
                 await using var writer = new StreamWriter(pipe) { AutoFlush = true };
-                await writer.WriteLineAsync(SummonProtocol.SummonRequest);
+                await writer.WriteLineAsync(SummonProtocol.SummonRequest).ConfigureAwait(false);
                 return true;
             }
             catch (TimeoutException)
