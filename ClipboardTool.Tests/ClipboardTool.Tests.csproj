@@ -23,4 +23,9 @@
     <None Include="TestAssets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- legacy 链路固化的参照 DIB/PNG 对（T06 图片身份，P3 原型资产正式化迁入） -->
+  <ItemGroup>
+    <None Include="ReferencePng\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
