@@ -36,6 +36,17 @@ public sealed record HistoryEntry(
 public sealed record RecordOutcome(HistoryEntry? Entry, bool Deduped, string Hash = "");
 
 /// <summary>
+/// 图片文件名契约（02-spec/02 §1）：磁盘真名 &lt;id&gt;.png。落盘（IImageFileStore 实现）
+/// 与图卡显示（图卡文件名行）两侧共用一个来源，避免契约字面两处漂移。
+/// </summary>
+public static class ImageFileNames
+{
+    public const string Extension = ".png";
+
+    public static string ForId(string id) => id + Extension;
+}
+
+/// <summary>
 /// 图片文件端口：写图、取哈希、删图、判存在。四条全部必供（构造即需要实现）——
 /// 曾写成 Option 配八连 setter，漏配一个不报错、只静默降级（legacy history.rs 的教训）。
 /// </summary>

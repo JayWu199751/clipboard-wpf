@@ -84,10 +84,12 @@ public sealed class ThumbnailCache
         long generation;
         lock (_gate)
         {
-            if (_items.ContainsKey(id))
+            // TryGetValue 一次查找：命中即触碰 LRU 并取图（避免 ContainsKey/TryGet/索引器三次查找）
+            if (_items.TryGetValue(id, out var node))
             {
-                TryGet(id, out _); // 命中即触碰（锁内 TryGet 幂等）
-                var hit = _items[id].Value.Bitmap;
+                _lru.Remove(node);
+                _lru.AddFirst(node);
+                var hit = node.Value.Bitmap;
                 _marshal(() => onLoaded(id, hit));
                 return;
             }

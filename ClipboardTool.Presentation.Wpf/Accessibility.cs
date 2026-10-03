@@ -59,19 +59,14 @@ public static class AccessibilityMotion
 {
     private const uint SPI_GETCLIENTAREAANIMATION = 0x1042;
 
-    /// <summary>true=系统允许客户区动画，播放过渡；false=减少动态，直接落地不播动画。</summary>
+    /// <summary>true=系统允许客户区动画，播放过渡；false=减少动态，直接落地不播动画。
+    /// 读数失败降级为「允许动画」（读不出就按默认开动画兜底，绝不让 toast 链因读数异常中断）。</summary>
     public static bool PlayAnimations
     {
         get
         {
-            var enabled = true;
-            if (!SystemParametersInfoGet(SPI_GETCLIENTAREAANIMATION, 0, out enabled, 0))
-            {
-                var error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                throw new System.ComponentModel.Win32Exception(error,
-                    $"SPI_GETCLIENTAREAANIMATION 读取失败（error={error}）");
-            }
-            return enabled;
+            return SystemParametersInfoGet(SPI_GETCLIENTAREAANIMATION, 0, out var enabled, 0)
+                && enabled;
         }
     }
 

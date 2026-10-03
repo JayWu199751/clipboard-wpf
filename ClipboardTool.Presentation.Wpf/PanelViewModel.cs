@@ -271,8 +271,8 @@ public sealed class PanelViewModel : INotifyPropertyChanged
             SearchRules.Highlight(note, query),
             isImage,
             entry.ImagePath,
-            // 文件名行（F42）：图卡 mono 文件名 = 磁盘真名 <id>.png
-            isImage ? entry.Id + ".png" : string.Empty);
+            // 文件名行（F42）：图卡 mono 文件名 = 磁盘真名 <id>.png（契约收口 ImageFileNames）
+            isImage ? ImageFileNames.ForId(entry.Id) : string.Empty);
     }
 
     /// <summary>Meta 行（F42：来源·时间，图钉/备注/编辑为后续段；来源缺失显示「未知来源」与 legacy 同口径）。</summary>

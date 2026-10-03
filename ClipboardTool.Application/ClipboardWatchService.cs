@@ -77,25 +77,19 @@ public sealed class ClipboardWatchService
     /// 返回 false 表示写入失败（基线不动）。WriteAndSyncImage 为图片侧（T06）：
     /// 按需读盘写位图内容，失败同样欠账。
     /// </summary>
-    public bool WriteAndSyncText(string text)
-    {
-        lock (_roundGate)
-        {
-            if (!_writer.WriteText(text))
-            {
-                return false;
-            }
-            SyncBaselineLocked();
-            return true;
-        }
-    }
+    public bool WriteAndSyncText(string text) =>
+        WriteAndSync(() => _writer.WriteText(text));
 
     /// <summary>图片侧的写 + 同步（T06）：语义与 WriteAndSyncText 完全一致。</summary>
-    public bool WriteAndSyncImage(string pngPath)
+    public bool WriteAndSyncImage(string pngPath) =>
+        WriteAndSync(() => _writer.WriteImage(pngPath));
+
+    /// <summary>写 + 同步的共享编排：写入失败基线不动；成功则同一临界区内补基线。</summary>
+    private bool WriteAndSync(Func<bool> write)
     {
         lock (_roundGate)
         {
-            if (!_writer.WriteImage(pngPath))
+            if (!write())
             {
                 return false;
             }

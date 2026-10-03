@@ -21,7 +21,7 @@ public sealed class ImageFileStore : IImageFileStore
         try
         {
             Directory.CreateDirectory(_imagesDir);
-            var path = Path.Combine(_imagesDir, id + ".png");
+            var path = Path.Combine(_imagesDir, ImageFileNames.ForId(id));
             File.WriteAllBytes(path, png);
             return path;
         }

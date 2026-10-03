@@ -46,7 +46,12 @@ public sealed class RegistryThemeWatcher : ThemeService.ISystemThemePort
         }
     }
 
-    /// <summary>启动监听（后台线程循环）。真机验证项：亮暗切换的广播时机与频率。</summary>
+    /// <summary>
+    /// 启动监听（后台线程循环）。实现是**同步阻塞通知**：RegNotifyChangeKeyValue(asynchronous:
+    /// false) 阻塞到值变更才返回，一个循环迭代一次通知——不是异步回调。线程为进程级常驻
+    /// （IsBackground 随主进程退出，无独立停机通道；进程生命周期即监听生命周期）。
+    /// 真机验证项：亮暗切换的广播时机与频率。
+    /// </summary>
     public void Start()
     {
         var thread = new Thread(WatchLoop)
