@@ -15,6 +15,7 @@ return args.FirstOrDefault() switch
 {
     "procs" => Probe.Procs(),
     "regkey" => Probe.RegKey(expectPresent: args.Contains("--present")),
+    "regkey-views" => Probe.RegKeyViews(),
     "archive" => Probe.Archive(),
     _ => Probe.Usage(),
 };
@@ -55,8 +56,9 @@ internal static class Probe
 
     public static int RegKey(bool expectPresent)
     {
-        const string key = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ClipboardTool";
-        using var k = Registry.LocalMachine.OpenSubKey(key);
+        // 键名=产品 GUID（新产品身份，与旧 Tauri 版 Uninstall\ClipboardTool 互不覆盖）；64 位视图
+        const string key = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7E4A9C31-8F2D-4B6A-9C05-3A1D8E52F7B4}";
+        using var k = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Registry64).OpenSubKey(key);
         var present = k is not null;
         Console.WriteLine($"regkey present={present} (期望={expectPresent})");
         if (present)
@@ -67,6 +69,26 @@ internal static class Probe
         var pass = present == expectPresent;
         Console.WriteLine(pass ? "regkey: PASS" : "regkey: FAIL");
         return pass ? 0 : 1;
+    }
+
+    /// <summary>64/32 位双注册表视图读卸载键：鉴别 NSIS（32 位进程 → WOW6432Node）与旧 Tauri 残留。</summary>
+    public static int RegKeyViews()
+    {
+        const string key = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ClipboardTool";
+        foreach (var (view, label) in new[] { (RegistryView.Registry64, "view64"), (RegistryView.Registry32, "view32") })
+        {
+            using var k = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view).OpenSubKey(key);
+            if (k is null)
+            {
+                Console.WriteLine($"{label}: <缺>");
+            }
+            else
+            {
+                Console.WriteLine($"{label}: DisplayName={k.GetValue("DisplayName")} Version={k.GetValue("DisplayVersion")} " +
+                    $"UninstallString={k.GetValue("UninstallString")} InstallLocation={k.GetValue("InstallLocation")}");
+            }
+        }
+        return 0;
     }
 
     public static int Archive()
