@@ -92,4 +92,11 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   legacy focus_paste.rs 的 C# 移植（FocusRestore.cs）为 03 票 FocusAdapter 蓝本，结论落 [ADR-0003](../../docs/adr/0003-提权焦点恢复与注入策略.md)。
   探针侧观察：runner 拉起子进程后立即激活会冻结靶窗 UI 线程；改为普通侧预启动+充分初始化后稳定。
   02 票 Execution 已置 resolved；03（T02）阻塞解除。
-- 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；正式内存门槛推迟到旧版基线实测后。
+- 2026-10-03：**T02 完成（提交 0919efd）**：文字复制粘贴闭环端到端可用（E2E 8 判据连续 4 轮全过）。
+  Domain PasteChain/PollBaseline/HistoryStore（legacy 23 例移植）、Application 四端口+监听编排+ModeExecutor 专用执行线程（ADR-0004）、
+  Infrastructure message-only 事件源（异步就绪+看门狗）/独占读写（进程内 ClipboardOps lease）/FocusPasteRestore 正式化。
+  评审两轴发现并修复**卡片双击真 bug**（MouseDoubleClick 为 Direct 路由事件绑 ListBox 收不到，改 PreviewMouseDoubleClick 隧道——此前链路从未被双击触发过）、
+  UI 线程 Wait、自写基线欠账与写+同步原子化；测试 41/41 全绿，构建零警告。
+  待人工：真实键盘 Enter、目标窗口关闭失败路径、光标原位、浏览器输入框（见[工单证据记录](issues/03-T02文字复制粘贴闭环.md)）。
+  03 票 Execution 已置 resolved。
+- 待人工：P1 `--manual` 复核（点击卡片不激活、真实打字/IME、多屏）；T02 真机人工项见 03 票；正式内存门槛推迟到旧版基线实测后。
