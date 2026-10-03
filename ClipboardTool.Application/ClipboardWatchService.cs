@@ -74,13 +74,28 @@ public sealed class ClipboardWatchService
     /// 写剪贴板并同步基线（粘贴链第 2/3 步的原子化）：两者在同一轮内临界区完成，
     /// 事件轮不可能看到「已写入但基线未跟上」的中间态——否则自写内容会在下一次
     /// 通知/轮询里被当成新复制重复记录+重复提升（粘贴后列表闪烁的来源）。
-    /// 返回 false 表示写入失败（基线不动）。
+    /// 返回 false 表示写入失败（基线不动）。WriteAndSyncImage 为图片侧（T06）：
+    /// 按需读盘写位图内容，失败同样欠账。
     /// </summary>
     public bool WriteAndSyncText(string text)
     {
         lock (_roundGate)
         {
             if (!_writer.WriteText(text))
+            {
+                return false;
+            }
+            SyncBaselineLocked();
+            return true;
+        }
+    }
+
+    /// <summary>图片侧的写 + 同步（T06）：语义与 WriteAndSyncText 完全一致。</summary>
+    public bool WriteAndSyncImage(string pngPath)
+    {
+        lock (_roundGate)
+        {
+            if (!_writer.WriteImage(pngPath))
             {
                 return false;
             }
@@ -160,7 +175,8 @@ public sealed class ClipboardWatchService
         var recorded = change switch
         {
             BaselineChange.Text text => _history.RecordText(text.Value),
-            BaselineChange.Image => false, // 图片侧归 T06（解码与写盘）；届时此处落图片
+            // T06 图片侧：写盘失败返回 false → Confirm(false) 欠账重试（同轮不推进基线）
+            BaselineChange.Image image => _history.RecordImage(image.Png),
             _ => false,
         };
 

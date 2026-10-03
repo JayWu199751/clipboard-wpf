@@ -24,6 +24,8 @@ internal static class NativeMethods
 
     // 剪贴板（F09/F10：独占窗口、序列号短路、事件源）
     public const uint CF_UNICODETEXT = 13;
+    public const uint CF_DIB = 8;
+    public const uint CF_DIBV5 = 17;
     public const int WM_CLIPBOARDUPDATE = 0x031D;
 
     /// <summary>message-only 窗口的父句柄（HWND_MESSAGE）。</summary>

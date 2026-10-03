@@ -17,7 +17,8 @@ public sealed class ClipboardReader : IClipboardReader
 
     public ClipboardReadOutcome Read()
     {
-        byte[]? bytes;
+        byte[]? textBytes;
+        byte[]? dibBytes;
         using (var lease = ClipboardOps.Acquire(OpenAttempts))
         {
             if (lease is null)
@@ -27,11 +28,15 @@ public sealed class ClipboardReader : IClipboardReader
 
             // 字节在独占段内拷出；解码在段外做（F10 硬约束——抱着剪贴板解码的
             // 几十毫秒正是用户刚按下 Ctrl+C 的时刻，会挤掉别人的 OpenClipboard）
-            bytes = ReadBytes(NativeMethods.CF_UNICODETEXT);
+            textBytes = ReadBytes(NativeMethods.CF_UNICODETEXT);
+            // 位图：V5 优先（alpha 语义最全），没有再退 CF_DIB
+            dibBytes = ReadBytes(NativeMethods.CF_DIBV5) ?? ReadBytes(NativeMethods.CF_DIB);
         }
 
-        var text = bytes is null ? string.Empty : DecodeUtf16(bytes);
-        return new ClipboardReadOutcome.Known(new ClipboardSnapshot(text, Png: null));
+        var text = textBytes is null ? string.Empty : DecodeUtf16(textBytes);
+        // DIB → PNG 在独占段之外（4K 截图的解码+编码不是小活，绝不能抱着剪贴板做）
+        var png = dibBytes is null ? null : ImageClipboard.PngFromDib(dibBytes);
+        return new ClipboardReadOutcome.Known(new ClipboardSnapshot(text, png));
     }
 
     /// <summary>取某格式的原始字节拷贝。返回的内存句柄归剪贴板所有：只读不动、绝不释放。须在守卫内调用。</summary>
