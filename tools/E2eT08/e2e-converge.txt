@@ -1,0 +1,6 @@
+[A-false] 03:51:14.627 计划任务收敛 action=CreateWithoutTrigger ok=True
+  has-logontrigger=0
+[B-true] 03:51:21.100 计划任务收敛 action=None ok=True
+  has-logontrigger=0
+[C-false] 03:51:28.235 计划任务收敛 action=None ok=True
+  has-logontrigger=0

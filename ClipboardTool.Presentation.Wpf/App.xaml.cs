@@ -29,6 +29,16 @@ public partial class App : System.Windows.Application
     private JsonStore? _settingsStore;
     private AppSettings _settings = AppSettings.Default;
     private DispatcherTimer? _captureSuccessTimer;
+    private StartupService? _startup;
+    private bool _isElevated;
+
+    /// <summary>开发构建不触碰计划任务事实（F36 三态之一：只记意图）。</summary>
+    private static readonly bool IsDevelopmentBuild =
+#if DEBUG
+        true;
+#else
+        false;
+#endif
 
     /// <summary>焦点快照的真源在协调器（FocusTargetSnapshot）：呼出时补拍、退出输入态复用、
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
@@ -75,10 +85,18 @@ public partial class App : System.Windows.Application
         _settingsStore = new JsonStore(dataDir);
         _settings = _settingsStore.ReadSettings();
 
+        // —— 静默启动通道（F36）：提权生产构建在启动尾部把计划任务事实收敛到持久化意图 ——
+        _isElevated = new System.Security.Principal.WindowsPrincipal(
+            System.Security.Principal.WindowsIdentity.GetCurrent())
+            .IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
+        _startup = new StartupService(
+            new ScheduledTaskRegistrar(),
+            ScheduledTaskBuilder.DefaultTaskName,
+            Environment.ProcessPath ?? string.Empty);
+
         var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User?.Value ?? string.Empty;
         var summonPipe = $"ClipboardTool-{sid}-summon";
-        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");
-        if (!gate.TryAcquire())
+        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");        if (!gate.TryAcquire())
         {
             Log("已有实例在运行：投递呼出请求后退出");
             // 经线程池等待（不直接 GetResult）：本方法跑在 UI 线程的 Dispatcher 上下文上，
@@ -201,6 +219,10 @@ public partial class App : System.Windows.Application
 
         _panel.Show();
         summonServer.Start();
+
+        // 启动收敛放尾部：一次 schtasks 查询（无动作时不注册），结果只记诊断不阻断启动
+        var convergence = _startup.ConvergeOnStartup(IsDevelopmentBuild, _isElevated, _settings.AutoStart);
+        Log($"计划任务收敛 action={convergence.Action} ok={convergence.Ok}");
         Log("== OnStartup 完成，面板已 Show ==");
     }
 
@@ -235,6 +257,25 @@ public partial class App : System.Windows.Application
     /// <summary>当前呼出键（设置串按码表解码；解析不了回落默认键——坏档不哑热键）。</summary>
     private HotkeyCombo ParsedToggle() =>
         AccelCodec.Parse(_settings.Shortcut) ?? HotkeyPlan.SummonDefault;
+
+    /// <summary>
+    /// 「开机启动」开关三态（F36）：开发构建只记意图、未提权延后到下次提权启动收敛、
+    /// 已提权立即重建任务事实；重建失败回退（意图不翻转，状态栏提示，任务保持原样可重试）。
+    /// 意图落盘仍走 UpdateSettings 单点（快照+落盘+菜单重建）。
+    /// </summary>
+    private void ToggleAutoStart()
+    {
+        var newIntent = !_settings.AutoStart;
+        var outcome = _startup!.Toggle(IsDevelopmentBuild, _isElevated, newIntent);
+        if (outcome.IntentApplied)
+        {
+            UpdateSettings(s => s with { AutoStart = newIntent });
+        }
+        else
+        {
+            ShowStatus(outcome.Message ?? "计划任务更新失败，开机启动未开启");
+        }
+    }
 
     // —— 主题编排（F26–F28） ——
 
@@ -302,8 +343,7 @@ public partial class App : System.Windows.Application
                 EnterShortcutCapture();
                 break;
             case "autostart":
-                // 意图先落盘；计划任务事实重建归 T08（T07 只留雏形，未提权建不出 Highest 任务）
-                UpdateSettings(s => s with { AutoStart = !s.AutoStart });
+                ToggleAutoStart();
                 break;
             case "clear-history":
                 // 托盘立即执行（F33）：先取消删除流程计时防误报，再清库存（含置顶/PNG 联动）；无确认窗

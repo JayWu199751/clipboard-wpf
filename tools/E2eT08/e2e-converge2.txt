@@ -1,0 +1,6 @@
+[A-false] 03:52:18.541 计划任务收敛 action=None ok=True
+  has-logontrigger=0 settings={"autoStart":false,"shortcut":"Control+Shift+V","theme":"system"}
+[B-true] 03:52:25.695 计划任务收敛 action=ReRegisterWithTrigger ok=True
+  has-logontrigger=1 settings={"autoStart":true,"shortcut":"Control+Shift+V","theme":"system"}
+[C-false] 03:52:32.839 计划任务收敛 action=ReRegisterWithoutTrigger ok=True
+  has-logontrigger=0 settings={"autoStart":false,"shortcut":"Control+Shift+V","theme":"system"}

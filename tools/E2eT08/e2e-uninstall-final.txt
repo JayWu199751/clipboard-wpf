@@ -1,0 +1,1 @@
+uninstall-exit=0 task-file=False instdir=False startmenu=False regkey=False archive-kept=True
