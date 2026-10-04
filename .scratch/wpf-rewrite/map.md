@@ -30,6 +30,7 @@
 | T07 | F26–F34 | 三态主题、托盘图标五档、换键捕获、单实例、清空历史 |
 | T08 | F35–F38、F39–F40（收尾） | 提权清单、静默任务、登录触发器、NSIS 安装/升级/卸载 |
 | T09 | F48 + 全量 | 无障碍、性能前后对比、验收矩阵逐项、切换回退演练 |
+| 14（失败票） | F06（F22 匹配侧既有单测覆盖） | 来源应用采集接线（IForegroundSource/ForegroundSource/监听接线），终审矩阵开票后补齐 |
 | 16（终审） | F17（①③；②由 P5/T01 达成） | 单击外部停靠与点击时间窗（ExternalClickRules/MouseHook/DockIfClickedOutside），终审两轴评审补齐 |
 
 依赖：T01←SDK/窗口试验；T02←T01；T03←T02；T04←T03；T05←T04；T06←T03+DIB/虚拟化试验；T07←T04+IPC 决策；T08←T07；T09←T05/T06/T08。
@@ -161,4 +162,6 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
 - 2026-10-04：**终审 code-review 完成（Standards 12 条 + Spec 1 项全部修复）**：Spec 轴发现 **F17 规划期漏排且矩阵误判**（单击外部停靠+点击时间窗零实现、矩阵引用 legacy 证据充当新实现证据）→ 开 [16 票](issues/16-F17单击外部停靠与点击时间窗缺失.md) 补齐：Domain.ExternalClickRules（三步判定+时间窗，9 例单测，legacy hides_on_click 逐条对齐）+ Infrastructure.MouseHook（WH_MOUSE_LL 回调只记录，ADR-0004 防线）+ PanelCoordinator.Show 记呼出时刻 + App.DockIfClickedOutside 归队 UI 线程停靠；E2E 判据 A/C/D 过，判据 B 本机无判别力（负控如实入档，判别性证据=Domain 单测，高负载真机留人工）；矩阵 F17 行按新证据改判。
   Standards 12 条全修：二实例投递去 UI 线程 GetResult 阻塞（异步 fire-and-forget+完成回调 Shutdown）；WriteImage 失败语义（句柄先备齐、清空后失败返 false=旧内容不可恢复，5 例钉住）；设置单点 UpdateSettingsPersistFirst（失败不推进）；`<id>.png` 收口 Domain.ImageFileNames；明暗判定收敛 ThemeService；清空编排并入 HistoryService.Clear；WriteAndSync 泛型提取；AccessibilityMotion 失败兜底；杂项清理；RegistryThemeWatcher 注释如实；ThumbnailCache 三查并一；GLOSSARY 收录「欠账/图钉」。
   **452/452 全绿（+16）、零警告**（合并前主线独立复验）。遗留：F17 时间窗竞态高负载真机；失败票 14（F06 来源应用）/15（F40 完整诊断）开放待做；正式内存门槛待用户拍板。
-- 当前前沿：**终审完成（13+1 票全 resolved，452/452 绿），集成线合回 main 收尾**；失败票 14/15 与内存门槛拍板为遗留事项。
+- 2026-10-04：**失败票 14（F06 来源应用接线）完成**（用户实测安装版卡片「未知来源」后开修）：`IForegroundSource` 端口（Application）+ `ForegroundSource`（legacy source_app.rs 移植：QueryFullProcessImageNameW/GetWindowTextW/ExtractAssociatedIcon→GetDIBits→PNG data URL，按 exePath 缓存含负缓存，任一失败降级 null=未知来源）+ ClipboardWatchService 落库前采集透传（Text/Image 两路，legacy 同刻）+ HistoryService.RecordText 补 sourceApp。短路轮零采集；采集异常双重兜底不阻塞记录链路。
+  **457/457 全绿（+5）、零警告**；真机 E2E tools/E2eT14 11/11 PASS（驱动自带 WPF 前台窗口作来源——本机 notepad 为商店版无窗存根不可靠；ForceForeground 归因验证、图标 PNG 签名、缓存路径、存档备份恢复零残留）。F22 来源名匹配为既有 SearchRulesTests 覆盖。覆盖表已补 14 行。见 [14 票证据](issues/14-F06来源应用接线缺失.md)，Execution 已置 resolved。
+- 当前前沿：**14 票完成；剩失败票 15（F40 完整诊断）与内存门槛拍板为遗留事项**。
