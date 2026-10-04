@@ -1,0 +1,17 @@
+E2eT14 运行于 2026-10-04 13:40:39
+PASS 被测应用启动且存活
+PASS 驱动窗口为前台窗口（来源判定前提）
+PASS 复制后条目落档
+PASS 文字条目携带 SourceApp
+PASS AppName == 驱动进程名（前台归因正确） ｜ 实际「E2eT14」
+PASS ExePath 真实存在 ｜ 实际「C:\Users\10854\Code\Clipboard-WPF\tools\E2eT14\bin\Debug\net10.0-windows\E2eT14.exe」
+PASS WindowTitle 非空且含窗口标题 ｜ 实际「E2eT14 来源窗口」
+PASS IconDataUrl 为 PNG data URL（图标提取链路走通）
+PASS 图标字节为合法 PNG 签名 ｜ 1267 bytes
+PASS 第二次复制条目落档
+PASS 第二次复制仍采集到来源（缓存路径不破坏采集）
+NOTE F22 来源名搜索匹配由 SearchRulesTests 单测覆盖（AppName/WindowTitle/ExePath 三字段在列）
+NOTE ClipboardTool 进程已清理
+NOTE 真实存档已原样恢复
+通过 11 项，失败 0 项
+E2eT14 全部通过

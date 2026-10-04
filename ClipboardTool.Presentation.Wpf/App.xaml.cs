@@ -128,7 +128,9 @@ public partial class App : System.Windows.Application
         _history = new HistoryService(store, _settingsStore);
         _history.LoadFromStorage();
         _watch = new ClipboardWatchService(
-            new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter());
+            new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter(),
+            // 来源应用采集（F06）：复制处理时取前台窗口信息，失败降级未知来源
+            new ForegroundSource());
         _paste = new PasteService(
             _history,
             _watch,

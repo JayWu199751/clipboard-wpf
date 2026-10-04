@@ -16,6 +16,7 @@ public sealed class ClipboardWatchService
     private readonly IClipboardSequence _sequence;
     private readonly HistoryService _history;
     private readonly IClipboardWriter _writer;
+    private readonly IForegroundSource _foreground;
     private readonly PollBaseline _baseline = new();
     private readonly object _roundGate = new();
     private bool _baselineSyncPending;
@@ -24,12 +25,14 @@ public sealed class ClipboardWatchService
         IClipboardReader reader,
         IClipboardSequence sequence,
         HistoryService history,
-        IClipboardWriter writer)
+        IClipboardWriter writer,
+        IForegroundSource foreground)
     {
         _reader = reader;
         _sequence = sequence;
         _history = history;
         _writer = writer;
+        _foreground = foreground;
     }
 
     /// <summary>
@@ -166,16 +169,34 @@ public sealed class ClipboardWatchService
             return true;
         }
 
+        // 来源应用采集（F06，票 14）：判定出真实变化后才取前台（复制发生时的前台即来源，
+        // legacy 在 record 时刻取 current_source_app 同刻）。采集不可得为 null=未知来源；
+        // 端口承诺不抛异常，此处再兜一层——丢来源不丢内容（判据 3：不阻塞记录链路）。
+        var sourceApp = TryCaptureSource();
+
         var recorded = change switch
         {
-            BaselineChange.Text text => _history.RecordText(text.Value),
+            BaselineChange.Text text => _history.RecordText(text.Value, sourceApp),
             // T06 图片侧：写盘失败返回 false → Confirm(false) 欠账重试（同轮不推进基线）
-            BaselineChange.Image image => _history.RecordImage(image.Png),
+            BaselineChange.Image image => _history.RecordImage(image.Png, sourceApp),
             _ => false,
         };
 
         _baseline.Confirm(recorded);
         _baseline.NoteSeq(seq);
         return !_baseline.RetryPending;
+    }
+
+    /// <summary>来源采集的兜底包装：端口契约是不抛异常，但防御性再吞一层——单轮内任何采集意外都只降级为 null。</summary>
+    private SourceApp? TryCaptureSource()
+    {
+        try
+        {
+            return _foreground.Capture();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 }

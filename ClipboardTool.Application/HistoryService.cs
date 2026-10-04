@@ -66,9 +66,10 @@ public sealed class HistoryService
         EntriesChanged?.Invoke();
     }
 
-    /// <summary>后台记录文字（F01）：空串不生成条目；重复命中提升不新建。落库成功即落盘并广播。</summary>
-    public bool RecordText(string text) =>
-        MutateAndPersist(() => _store.RecordText(text).Entry is not null);
+    /// <summary>后台记录文字（F01）：空串不生成条目；重复命中提升不新建。落库成功即落盘并广播。
+    /// sourceApp 为来源应用采集（F06，票 14），透传给新建条目（命中提升属性不变）。</summary>
+    public bool RecordText(string text, SourceApp? sourceApp = null) =>
+        MutateAndPersist(() => _store.RecordText(text, sourceApp).Entry is not null);
 
     /// <summary>记录图片（F03/F05 图片侧规则；DIB 解码与监听接线归 T06）：写盘失败不落库不落盘。</summary>
     public bool RecordImage(byte[] png, SourceApp? sourceApp = null) =>

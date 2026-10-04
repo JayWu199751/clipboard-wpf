@@ -35,8 +35,34 @@ public sealed class ClipboardWatchServiceTests
         public bool WriteImage(string pngPath) => Result;
     }
 
+    /// <summary>来源采集替身（票 14）：可配置返回值/异常，记录调用次数供「无变化轮不采集」断言。</summary>
+    private sealed class FakeForegroundSource : IForegroundSource
+    {
+        public SourceApp? Source { get; set; } = new SourceApp(ExePath: @"C:\app\notes.exe", AppName: "notes");
+
+        public Exception? Throw { get; set; }
+
+        public int CaptureCalls { get; private set; }
+
+        public SourceApp? Capture()
+        {
+            CaptureCalls++;
+            if (Throw is not null)
+            {
+                throw Throw;
+            }
+
+            return Source;
+        }
+    }
+
     private static ClipboardSnapshot Snapshot(byte[]? png, string text = "") =>
         new(text, png);
+
+    private static HistoryService NewHistory(FakeImageFiles? images = null) =>
+        new(new HistoryStore(
+            HistoryStore.DefaultMaxHistory, images ?? new FakeImageFiles(),
+            () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
 
     [Fact]
     public void 图片入史_一轮落库并接受基线_同内容不再重录()
@@ -47,7 +73,7 @@ public sealed class ClipboardWatchServiceTests
             HistoryStore.DefaultMaxHistory, images,
             () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
         var watch = new ClipboardWatchService(
-            reader, new FakeSequence(), history, new FakeWriter());
+            reader, new FakeSequence(), history, new FakeWriter(), new FakeForegroundSource());
 
         reader.Outcome = new ClipboardReadOutcome.Known(Snapshot("png-bytes"u8.ToArray()));
         Assert.True(watch.PollRound());
@@ -73,7 +99,7 @@ public sealed class ClipboardWatchServiceTests
             HistoryStore.DefaultMaxHistory, images,
             () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
         var watch = new ClipboardWatchService(
-            reader, new FakeSequence(), history, new FakeWriter());
+            reader, new FakeSequence(), history, new FakeWriter(), new FakeForegroundSource());
 
         Assert.False(watch.PollRound()); // 失败轮：欠账未清，要求稍后再试
         Assert.Empty(history.Entries);
@@ -93,7 +119,7 @@ public sealed class ClipboardWatchServiceTests
             HistoryStore.DefaultMaxHistory, new FakeImageFiles(),
             () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
         var watch = new ClipboardWatchService(
-            reader, new FakeSequence(), history, new FakeWriter());
+            reader, new FakeSequence(), history, new FakeWriter(), new FakeForegroundSource());
 
         Assert.False(watch.PollRound());
         Assert.Empty(history.Entries);
@@ -111,7 +137,7 @@ public sealed class ClipboardWatchServiceTests
             HistoryStore.DefaultMaxHistory, new FakeImageFiles(),
             () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
         var writer = new FakeWriter();
-        var watch = new ClipboardWatchService(reader, seq, history, writer);
+        var watch = new ClipboardWatchService(reader, seq, history, writer, new FakeForegroundSource());
 
         writer.Result = false;
         Assert.False(watch.WriteAndSyncImage(@"C:\x\missing.png"));
@@ -134,7 +160,7 @@ public sealed class ClipboardWatchServiceTests
             HistoryStore.DefaultMaxHistory, new FakeImageFiles(),
             () => Guid.NewGuid().ToString(), () => 1_700_000_000_000));
         var watch = new ClipboardWatchService(
-            new FakeReader(), new FakeSequence(), history, new FakeWriter());
+            new FakeReader(), new FakeSequence(), history, new FakeWriter(), new FakeForegroundSource());
         var paste = new PasteService(
             history, watch,
             capturedFocus: () => null,
@@ -147,5 +173,98 @@ public sealed class ClipboardWatchServiceTests
 
         Assert.Equal(new CopyContent.Image(entry.ImagePath!), paste.ContentOf(entry.Id));
         Assert.Null(paste.ContentOf("missing"));
+    }
+
+    // ---------- 来源应用采集（F06，票 14） ----------
+
+    [Fact]
+    public void 文字记录携带前台来源应用()
+    {
+        var reader = new FakeReader();
+        var source = new FakeForegroundSource
+        {
+            Source = new SourceApp(
+                ExePath: @"C:\Windows\System32\notepad.exe", AppName: "notepad", WindowTitle: "示例 - 记事本"),
+        };
+        var history = NewHistory();
+        var watch = new ClipboardWatchService(reader, new FakeSequence(), history, new FakeWriter(), source);
+
+        reader.Outcome = new ClipboardReadOutcome.Known(Snapshot(null, "新复制文字"));
+        Assert.True(watch.PollRound());
+
+        var entry = Assert.Single(history.Entries);
+        Assert.Equal("notepad", entry.SourceApp!.AppName);
+        Assert.Equal(@"C:\Windows\System32\notepad.exe", entry.SourceApp.ExePath);
+        Assert.Equal("示例 - 记事本", entry.SourceApp.WindowTitle);
+        Assert.Equal(1, source.CaptureCalls);
+    }
+
+    [Fact]
+    public void 图片记录携带前台来源应用()
+    {
+        var reader = new FakeReader();
+        var source = new FakeForegroundSource { Source = new SourceApp(AppName: "pixpin") };
+        var history = NewHistory();
+        var watch = new ClipboardWatchService(reader, new FakeSequence(), history, new FakeWriter(), source);
+
+        reader.Outcome = new ClipboardReadOutcome.Known(Snapshot("png-bytes"u8.ToArray()));
+        Assert.True(watch.PollRound());
+
+        var entry = Assert.Single(history.Entries);
+        Assert.Equal(EntryKind.Image, entry.Type);
+        Assert.Equal("pixpin", entry.SourceApp!.AppName);
+        Assert.Equal(1, source.CaptureCalls);
+    }
+
+    [Fact]
+    public void 采集不可得_按未知来源落库_SourceApp为null()
+    {
+        // legacy 口径：无前台/查不到进程 → None → 存档 sourceApp=null，卡片显示「未知来源」
+        var reader = new FakeReader();
+        var source = new FakeForegroundSource { Source = null };
+        var history = NewHistory();
+        var watch = new ClipboardWatchService(reader, new FakeSequence(), history, new FakeWriter(), source);
+
+        reader.Outcome = new ClipboardReadOutcome.Known(Snapshot(null, "无来源文字"));
+        Assert.True(watch.PollRound());
+
+        var entry = Assert.Single(history.Entries);
+        Assert.Null(entry.SourceApp);
+    }
+
+    [Fact]
+    public void 采集抛异常_记录链路不阻塞_按未知来源落库()
+    {
+        // 判据 3：采集任何意外失败都不得阻塞记录链路——条目照常落库（丢来源不丢内容）
+        var reader = new FakeReader();
+        var source = new FakeForegroundSource { Throw = new InvalidOperationException("boom") };
+        var history = NewHistory();
+        var watch = new ClipboardWatchService(reader, new FakeSequence(), history, new FakeWriter(), source);
+
+        reader.Outcome = new ClipboardReadOutcome.Known(Snapshot(null, "异常防护文字"));
+        Assert.True(watch.PollRound());
+
+        var entry = Assert.Single(history.Entries);
+        Assert.Equal("异常防护文字", entry.Text);
+        Assert.Null(entry.SourceApp);
+    }
+
+    [Fact]
+    public void 无变化轮不采集_短路先行()
+    {
+        // 采集只发生在判定出真实变化的记录轮：序列号短路的空转轮一次都不取前台
+        var reader = new FakeReader();
+        var source = new FakeForegroundSource();
+        var history = NewHistory();
+        var watch = new ClipboardWatchService(reader, new FakeSequence(), history, new FakeWriter(), source);
+
+        reader.Outcome = new ClipboardReadOutcome.Known(Snapshot(null, "初始内容"));
+        Assert.True(watch.PollRound());
+        Assert.Equal(1, source.CaptureCalls);
+
+        // 同序列号再轮：短路，不采集、不重录
+        Assert.True(watch.PollRound());
+        Assert.Equal(1, source.CaptureCalls);
+        _ = Assert.Single(history.Entries);
     }
 }

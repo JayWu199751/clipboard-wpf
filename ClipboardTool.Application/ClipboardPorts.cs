@@ -1,3 +1,5 @@
+using ClipboardTool.Domain.History;
+
 namespace ClipboardTool.Application;
 
 /// <summary>剪贴板监听端口契约（Application 定义端口，Infrastructure.Windows 落平台实现）。</summary>
@@ -38,6 +40,17 @@ public interface IClipboardWriter
 public interface IClipboardSequence
 {
     uint Current();
+}
+
+/// <summary>
+/// 来源应用采集端口（F06，票 14）：复制处理时取前台窗口信息（legacy source_app.rs 口径）。
+/// 返回 null 表示采集不可得（无前台/查不到进程），落库与显示按「未知来源」处理；
+/// SourceApp 各字段允许空串（exe 查不到但窗口标题可得等中间态，legacy 同样原样保留）。
+/// 实现必须自吞异常、快速返回——采集在任何情况下都不得阻塞记录链路（监听线程防线）。
+/// </summary>
+public interface IForegroundSource
+{
+    SourceApp? Capture();
 }
 
 /// <summary>

@@ -303,6 +303,59 @@ internal static class NativeMethods
     public const uint WM_QUIT = 0x0012;
     public const uint WM_TIMER = 0x0113;
 
+    // ---------- 来源应用采集（F06，票 14；legacy source_app.rs 同款 API 面） ----------
+
+    public const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    public const uint PROCESS_NAME_WIN32 = 0;
+
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr OpenProcess(uint access, bool inheritHandle, uint processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool QueryFullProcessImageNameW(IntPtr process, uint flags,
+        System.Text.StringBuilder exeName, ref uint size);
+
+    [DllImport("kernel32.dll")]
+    public static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr GetModuleHandleW(string? moduleName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowTextW(IntPtr hwnd, System.Text.StringBuilder text, int maxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetIconInfo(IntPtr hIcon, ref ICONINFO info);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern IntPtr ExtractAssociatedIconW(IntPtr hInst, System.Text.StringBuilder path, ref ushort index);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BITMAP
+    {
+        public int bmType;
+        public int bmWidth;
+        public int bmHeight;
+        public int bmWidthBytes;
+        public ushort bmPlanes;
+        public ushort bmBitsPixel;
+        public IntPtr bmBits;
+    }
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetObjectW(IntPtr hObject, int count, ref BITMAP bitmap);
+
+    /// <summary>读 DIB 像素；bits 传 null 时回填 bmiHeader 实际尺寸（两步惯用法）。</summary>
+    [DllImport("gdi32.dll")]
+    public static extern int GetDIBits(IntPtr hdc, IntPtr hbm, uint startScan, uint scanLines,
+        byte[]? bits, ref BITMAPINFO bmi, uint usage);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetDC(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    public static extern int ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
     // ---------- 注册表主题键读取与监听（F26–F28） ----------
 
     public static readonly IntPtr HKEY_CURRENT_USER = new(unchecked((int)0x80000001));
