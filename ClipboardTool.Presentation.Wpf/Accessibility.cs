@@ -20,6 +20,9 @@ public static class AccessibilityNames
     /// <summary>搜索清除按钮（纯图形无文本，必须显式命名）。</summary>
     public const string SearchClear = "清除搜索关键词";
 
+    /// <summary>搜索井内主题切换按钮（纯图形无文本，必须显式命名；三态循环 F26）。</summary>
+    public const string ThemeToggle = "切换主题";
+
     /// <summary>内联备注编辑框。</summary>
     public const string NoteEditor = "编辑备注";
 

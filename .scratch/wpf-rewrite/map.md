@@ -32,6 +32,7 @@
 | T09 | F48 + 全量 | 无障碍、性能前后对比、验收矩阵逐项、切换回退演练 |
 | 14（失败票） | F06（F22 匹配侧既有单测覆盖） | 来源应用采集接线（IForegroundSource/ForegroundSource/监听接线），终审矩阵开票后补齐 |
 | 16（终审） | F17（①③；②由 P5/T01 达成） | 单击外部停靠与点击时间窗（ExternalClickRules/MouseHook/DockIfClickedOutside），终审两轴评审补齐 |
+| 17（用户报告） | F26（面板主题按钮入口） | 搜索井内主题按钮接线（占位 Border → 真按钮三态循环 + 井点击排除 PanelHeaderRules + App Toggle 接线），用户真机报告后补齐 |
 
 依赖：T01←SDK/窗口试验；T02←T01；T03←T02；T04←T03；T05←T04；T06←T03+DIB/虚拟化试验；T07←T04+IPC 决策；T08←T07；T09←T05/T06/T08。
 
@@ -164,4 +165,6 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   **452/452 全绿（+16）、零警告**（合并前主线独立复验）。遗留：F17 时间窗竞态高负载真机；失败票 14（F06 来源应用）/15（F40 完整诊断）开放待做；正式内存门槛待用户拍板。
 - 2026-10-04：**失败票 14（F06 来源应用接线）完成**（用户实测安装版卡片「未知来源」后开修）：`IForegroundSource` 端口（Application）+ `ForegroundSource`（legacy source_app.rs 移植：QueryFullProcessImageNameW/GetWindowTextW/ExtractAssociatedIcon→GetDIBits→PNG data URL，按 exePath 缓存含负缓存，任一失败降级 null=未知来源）+ ClipboardWatchService 落库前采集透传（Text/Image 两路，legacy 同刻）+ HistoryService.RecordText 补 sourceApp。短路轮零采集；采集异常双重兜底不阻塞记录链路。
   **457/457 全绿（+5）、零警告**；真机 E2E tools/E2eT14 11/11 PASS（驱动自带 WPF 前台窗口作来源——本机 notepad 为商店版无窗存根不可靠；ForceForeground 归因验证、图标 PNG 签名、缓存路径、存档备份恢复零残留）。F22 来源名匹配为既有 SearchRulesTests 覆盖。覆盖表已补 14 行。见 [14 票证据](issues/14-F06来源应用接线缺失.md)，Execution 已置 resolved。
-- 当前前沿：**14 票完成；剩失败票 15（F40 完整诊断）与内存门槛拍板为遗留事项**。
+- 2026-10-04：**用户报告票 17（F26 面板主题按钮）完成**（真机报告「搜索框内亮暗切换按钮点击后进搜索」）：根因=T07 只落 ThemeService 与托盘入口，井内按钮停留占位 Border 无点击行为，点击命中 SearchWell 背景走隧道处理进搜索。修复按 legacy「操作」规格补齐：占位换真按钮（sun/moon/monitor 三图标按偏好、悬停底+当前与下一态 tooltip、Focusable=False 搜索态不抢焦点）→ ThemeToggleRequested → App 侧 ThemeService.Toggle（权威三态循环，失败保留偏好）；浏览态点按钮不进搜索=井隧道处理按命中来源排除按钮子树（PanelHeaderRules.ShouldActivateSearch 纯函数；隧道祖先先至，按钮侧 Handled 拦不住）；偏好经启动初值 + MenuChanged 回推与托盘子菜单同源。
+  **465/465 全绿（+8）、零警告**（规则 4 例真值表 + VM 三态展示映射 4 例；AccessibilityNames 补 ThemeToggle）。见 [17 票证据](issues/17-F26面板主题按钮未接线.md)，Execution 已置 resolved。
+- 当前前沿：**17 票完成；剩失败票 15（F40 完整诊断）与内存门槛拍板为遗留事项**。

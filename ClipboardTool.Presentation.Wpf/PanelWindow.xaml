@@ -206,20 +206,92 @@
                                 </Button.Template>
                             </Button>
 
-                            <!-- 主题按钮占位：24 按钮/15 图标（三态切换逻辑归 T07） -->
-                            <Border Grid.Column="3" Width="24" Height="24"
-                                    CornerRadius="12"
-                                    VerticalAlignment="Center">
-                                <Viewbox Width="15" Height="15">
-                                    <Canvas Width="24" Height="24">
-                                        <Rectangle Canvas.Left="3" Canvas.Top="5" Width="18" Height="12" RadiusX="2" RadiusY="2"
-                                                   Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75" />
-                                        <Line X1="9" Y1="20.5" X2="15" Y2="20.5"
-                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
-                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
-                                    </Canvas>
-                                </Viewbox>
-                            </Border>
+                            <!-- 主题按钮（F26 面板入口）：24 按钮/15 图标，展示当前偏好
+                                 （太阳=亮色/月亮=暗色/显示器=跟随系统），点击三态循环（App 侧
+                                 ThemeService.Toggle 权威，经 ThemeToggleRequested 上抛）。
+                                 Focusable=False：切换不抢焦点，搜索态保留文字与输入焦点；
+                                 浏览态点击按钮不进搜索——井的隧道处理先于按钮触发（祖先先至），
+                                 OnSearchWellPress 按命中来源排除本按钮；悬停提示当前与下一态 -->
+                            <Button x:Name="ThemeButton"
+                                    Grid.Column="3"
+                                    Width="24" Height="24"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Focusable="False"
+                                    ToolTip="{Binding ThemeButtonTooltip}"
+                                    AutomationProperties.Name="{x:Static local:AccessibilityNames.ThemeToggle}"
+                                    PreviewMouseLeftButtonDown="OnThemeButtonPress">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="ThemeBg"
+                                                Background="Transparent"
+                                                CornerRadius="12"
+                                                BorderThickness="1"
+                                                BorderBrush="Transparent">
+                                            <Grid>
+                                                <!-- 太阳（亮色偏好，lucide sun） -->
+                                                <Viewbox Width="15" Height="15"
+                                                         Visibility="{Binding ThemeSunVisible}">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Ellipse Canvas.Left="8" Canvas.Top="8" Width="8" Height="8"
+                                                                 Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75" />
+                                                        <Line X1="12" Y1="2" X2="12" Y2="4"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="12" Y1="20" X2="12" Y2="22"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="4.93" Y1="4.93" X2="6.34" Y2="6.34"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="17.66" Y1="17.66" X2="19.07" Y2="19.07"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="2" Y1="12" X2="4" Y2="12"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="20" Y1="12" X2="22" Y2="12"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="6.34" Y1="17.66" X2="4.93" Y2="19.07"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                        <Line X1="19.07" Y1="4.93" X2="17.66" Y2="6.34"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <!-- 月亮（暗色偏好，lucide moon） -->
+                                                <Viewbox Width="15" Height="15"
+                                                         Visibility="{Binding ThemeMoonVisible}">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Path Data="M 12,3 A 6,6 0 0 0 21,12 A 9,9 0 1 1 12,3 Z"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                              StrokeLineJoin="Round" />
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <!-- 显示器（跟随系统偏好） -->
+                                                <Viewbox Width="15" Height="15"
+                                                         Visibility="{Binding ThemeMonitorVisible}">
+                                                    <Canvas Width="24" Height="24">
+                                                        <Rectangle Canvas.Left="3" Canvas.Top="5" Width="18" Height="12" RadiusX="2" RadiusY="2"
+                                                                   Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75" />
+                                                        <Line X1="9" Y1="20.5" X2="15" Y2="20.5"
+                                                              Stroke="{DynamicResource Brush.Text.Secondary}" StrokeThickness="1.75"
+                                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                                    </Canvas>
+                                                </Viewbox>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ThemeBg" Property="Background" Value="{DynamicResource Brush.Bg.Active}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
 
                             <!-- 键名 chip（搜索键的家，legacy「提示 = 行为」）：文本由键位注册表推导，搜索态收起 -->
                             <Border Grid.Column="4" Height="18" MinWidth="18"
@@ -559,10 +631,12 @@
                                             Visibility="{Binding ActionLabel, Converter={StaticResource StringNotEmptyToVisibility}}">
                                         <Button.Template>
                                             <ControlTemplate TargetType="Button">
+                                                <!-- 静态无边框（对齐原型 .toast__action：accent 文字 + 胶囊悬停底，无边框线）；
+                                                     保留 1px 透明描边仅作 F48 键盘焦点环载体 -->
                                                 <Border x:Name="ToastActionBg"
                                                         Background="Transparent"
-                                                        CornerRadius="6"
-                                                        BorderBrush="{DynamicResource Brush.Border.Strong}"
+                                                        CornerRadius="999"
+                                                        BorderBrush="Transparent"
                                                         BorderThickness="1"
                                                         Padding="{TemplateBinding Padding}">
                                                     <ContentPresenter VerticalAlignment="Center"

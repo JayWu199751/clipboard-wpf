@@ -20,6 +20,7 @@ public class AccessibilityNamesTests
             ClipboardTool.Presentation.Wpf.AccessibilityNames.HistoryList,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.SearchInput,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.SearchClear,
+            ClipboardTool.Presentation.Wpf.AccessibilityNames.ThemeToggle,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.NoteEditor,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.CaptureStatus,
         };
@@ -38,6 +39,7 @@ public class AccessibilityNamesTests
             ClipboardTool.Presentation.Wpf.AccessibilityNames.HistoryList,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.SearchInput,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.SearchClear,
+            ClipboardTool.Presentation.Wpf.AccessibilityNames.ThemeToggle,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.NoteEditor,
             ClipboardTool.Presentation.Wpf.AccessibilityNames.CaptureStatus,
         };

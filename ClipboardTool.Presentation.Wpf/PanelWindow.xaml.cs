@@ -9,6 +9,7 @@ using ClipboardTool.Domain.Geometry;
 using ClipboardTool.Domain.Hotkeys;
 using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.Search;
+using ClipboardTool.Domain.Settings;
 using ClipboardTool.Infrastructure.Windows;
 
 namespace ClipboardTool.Presentation.Wpf;
@@ -57,6 +58,9 @@ public partial class PanelWindow : Window
 
     /// <summary>浏览态点击搜索井（进搜索，F20/F22）。</summary>
     public event Action? SearchActivationRequested;
+
+    /// <summary>面板主题按钮点击（F26 面板入口；三态循环权威在 App 侧 ThemeService.Toggle）。</summary>
+    public event Action? ThemeToggleRequested;
 
     /// <summary>IME composition 开始/结束（F21；经宿主上报协调器做导航键让位）。</summary>
     public event Action<bool>? CompositionChanged;
@@ -332,14 +336,48 @@ public partial class PanelWindow : Window
 
     // —— 搜索头 ——
 
-    /// <summary>浏览态点击搜索井 = 进搜索（F22；搜索态的点击交给输入框，不拦截）。</summary>
+    /// <summary>
+    /// 浏览态点击搜索井 = 进搜索（F22；搜索态的点击交给输入框，不拦截）。
+    /// 井内主题按钮（F26）：legacy 语义「浏览态点击按钮不会进入搜索」（两态皆切主题），
+    /// 而井的隧道处理先于按钮触发（隧道祖先先至，按钮侧 Handled 拦不住），按命中来源排除。
+    /// </summary>
     private void OnSearchWellPress(object sender, MouseButtonEventArgs e)
     {
-        if (!_viewModel.SearchActive)
+        if (PanelHeaderRules.ShouldActivateSearch(
+                _viewModel.SearchActive,
+                pressedThemeButton: IsWithinThemeButton(e.OriginalSource as DependencyObject)))
         {
             SearchActivationRequested?.Invoke();
         }
     }
+
+    /// <summary>
+    /// 主题按钮：MouseDown 即切换（与清除按钮同策略，不抢焦点——搜索态保留文字与
+    /// 输入焦点，F26）；切换效果经 App 侧 ThemeService.Toggle 落地，失败保留原偏好
+    /// （按钮图标不变，可重试）。
+    /// </summary>
+    private void OnThemeButtonPress(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ThemeToggleRequested?.Invoke();
+    }
+
+    /// <summary>命中来源是否落在主题按钮子树内（井隧道处理按来源排除按钮区域用）。</summary>
+    private bool IsWithinThemeButton(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (ReferenceEquals(source, ThemeButton))
+            {
+                return true;
+            }
+            source = VisualTreeHelper.GetParent(source);
+        }
+        return false;
+    }
+
+    /// <summary>App 推送当前主题偏好（启动初值 + 托盘/面板切换后同步），按钮图标与提示随之刷新。</summary>
+    public void SetThemePreference(ThemeKind theme) => _viewModel.ThemePreference = theme;
 
     /// <summary>清除按钮：清查询并保留输入焦点（F23）。MouseDown 即处理，避免焦点跳走。</summary>
     private void OnSearchClearPress(object sender, MouseButtonEventArgs e)

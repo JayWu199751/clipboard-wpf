@@ -107,9 +107,12 @@ public partial class App : System.Windows.Application
         _theme.PanelThemeChanged += dark => Dispatcher.BeginInvoke(() => ApplyPanelTheme(dark));
         _theme.TrayThemeChanged += dark => Dispatcher.BeginInvoke(() => SyncTrayIcon(dark));
         _theme.MenuChanged += () => Dispatcher.BeginInvoke(RebuildTrayMenu);
+        // 面板主题按钮（F26）：偏好推进后回推面板（图标/提示与托盘子菜单同源同步）
+        _theme.MenuChanged += () => Dispatcher.BeginInvoke(() => _panel?.SetThemePreference(_theme!.Preference));
         watcher.ThemeChanged += () => Dispatcher.BeginInvoke(_theme.RefreshFromSystem);
         watcher.Start();
         ApplyPanelTheme(_theme!.IsPanelDark); // 启动即落当前有效皮肤（ThemeService 单一权威，不落盘不发事件链）
+        _panel.SetThemePreference(_theme.Preference); // 面板主题按钮初值（展示当前偏好，F26）
 
         // 共享缩略图缓存（T06）：解码 Task.Run 后台线程（结果 Freeze）、回调归队 UI；
         // 双上限（32 张 / 24 MiB）、按 Id 记忆化、失效与代次规则在缓存内部
@@ -155,6 +158,7 @@ public partial class App : System.Windows.Application
         // —— 面板事件 → 意图/编排（UI 线程封闭；协调器状态与全部效果调用都在该线程） ——
         _panel.CardPasteRequested += RequestPaste;
         _panel.SearchActivationRequested += EnterSearch;
+        _panel.ThemeToggleRequested += () => _theme!.Toggle(); // F26 面板入口：三态循环走权威 Toggle（失败保留原偏好可重试）
         _panel.CompositionChanged += composing => _coordinator.SetComposing(composing);
         _panel.NoteEditExitRequested += () => _coordinator.ExitInput(PanelMode.NoteEdit, restoreFocus: true);
         _panel.PinRequested += id => _history.TogglePin(id); // 取消置顶保留 pinnedAt（存档契约）

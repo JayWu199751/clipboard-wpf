@@ -5,6 +5,7 @@ using System.Windows;
 using ClipboardTool.Domain.History;
 using ClipboardTool.Domain.PanelModes;
 using ClipboardTool.Domain.Search;
+using ClipboardTool.Domain.Settings;
 
 namespace ClipboardTool.Presentation.Wpf;
 
@@ -86,6 +87,41 @@ public sealed class PanelViewModel : INotifyPropertyChanged
 
     public string SearchKeyText { get; } = PanelNavKeys.Shortcuts
         .First(s => s.Action == NavAction.Search).Combo.DisplayName;
+
+    // —— 主题按钮（F26 面板入口）：只展示当前偏好（太阳/月亮/显示器），点击循环切换由
+    //    App 侧 ThemeService.Toggle 单一权威处理；偏好由 App 推送（启动初值 + 托盘切换同步），
+    //    按钮与托盘「主题」子菜单同源。悬停提示当前与下一态（legacy 口径）。 ——
+    private ThemeKind _themePreference = ThemeKind.System;
+
+    /// <summary>主题偏好三态（legacy themeControl：按钮展示偏好，生效明暗由 ThemeService 判定）。</summary>
+    public ThemeKind ThemePreference
+    {
+        get => _themePreference;
+        set
+        {
+            if (_themePreference == value) return;
+            _themePreference = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ThemeButtonLabel));
+            OnPropertyChanged(nameof(ThemeButtonTooltip));
+            OnPropertyChanged(nameof(ThemeSunVisible));
+            OnPropertyChanged(nameof(ThemeMoonVisible));
+            OnPropertyChanged(nameof(ThemeMonitorVisible));
+        }
+    }
+
+    /// <summary>当前偏好中文名（ThemeLabels 单一来源，与托盘子菜单文案一致）。</summary>
+    public string ThemeButtonLabel => ThemeLabels.Of(_themePreference);
+
+    /// <summary>悬停提示：当前与下一态（legacy 规格「悬停提示当前与下一态」）。</summary>
+    public string ThemeButtonTooltip =>
+        $"{ThemeButtonLabel}，点击切换到{ThemeLabels.Of(_themePreference.Next())}";
+
+    public Visibility ThemeSunVisible => _themePreference == ThemeKind.Light ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ThemeMoonVisible => _themePreference == ThemeKind.Dark ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility ThemeMonitorVisible => _themePreference == ThemeKind.System ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>备注编辑中的条目（null = 无编辑中的卡片）。</summary>
     public string? NoteEditingId
