@@ -8,8 +8,8 @@
                 <!-- 三态主题偏好（跟随系统/明/暗）的切换归 T07；骨架默认暗色 -->
                 <ResourceDictionary Source="Themes/Dark.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <!-- 普通文字内置思源黑体（ADR-0001 决策 3）；等宽字体保留现有系统回退链。 -->
-            <FontFamily x:Key="Font.Sans">/ClipboardTool;component/Assets/Fonts/SourceHanSans/#Source Han Sans CN, Segoe UI</FontFamily>
+            <!-- 普通文字使用系统微软雅黑（ADR-0001 决策 3）；等宽字体保留现有系统回退链。 -->
+            <FontFamily x:Key="Font.Sans">Microsoft YaHei, Segoe UI</FontFamily>
             <FontFamily x:Key="Font.Mono">JetBrains Mono, Cascadia Code, Consolas</FontFamily>
         </ResourceDictionary>
     </Application.Resources>

@@ -1,10 +1,12 @@
 # 思源黑体验证记录
 
+> 本记录对应历史提交 `4e05419`。后续用户指定改为微软雅黑并移除思源黑体，见 [新验证记录](../microsoft-yahei/evidence.md)。本页复现命令及字体来源说明仅对历史提交适用。
+
 日期：2026-10-08。
 
 ## 字体与资源
 
-- 从 Adobe 官方仓库 2.005R 下载，未修改 OTF 文件；版本、URL 和 SHA-256 见 [字体来源说明](../../ClipboardTool.Presentation.Wpf/Assets/Fonts/SourceHanSans/README.md)。
+- 从 Adobe 官方仓库 2.005R 下载，未修改 OTF 文件；版本、URL 和 SHA-256 见历史提交中的 `ClipboardTool.Presentation.Wpf/Assets/Fonts/SourceHanSans/README.md`。
 - 验证程序载入实际 `App.xaml`，不执行应用启动链路；实际 GlyphRun 的 URI 分别是程序集内的 Regular、Medium，字重一致，中文及拉丁样例没有缺字。
 - `Font.Mono` 仍为 `JetBrains Mono, Cascadia Code, Consolas`。
 - [渲染样例](font-preview.png)仅验证字体加载，不能代替真实桌面验收。

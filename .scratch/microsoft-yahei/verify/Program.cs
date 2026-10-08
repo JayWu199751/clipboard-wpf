@@ -14,6 +14,8 @@ internal static class Program
         app.InitializeComponent();
         var sans = (FontFamily)app.Resources["Font.Sans"];
         var mono = (FontFamily)app.Resources["Font.Mono"];
+        if (sans.Source != "Microsoft YaHei, Segoe UI")
+            throw new InvalidOperationException("普通字体资源不是微软雅黑回退链。");
         if (mono.Source != "JetBrains Mono, Cascadia Code, Consolas")
             throw new InvalidOperationException("等宽字体资源发生变化。");
 
@@ -51,10 +53,11 @@ internal static class Program
         foreach (var run in runs)
         {
             var glyph = run.GlyphRun.GlyphTypeface;
-            if (!glyph.FontUri.ToString().Contains("/ClipboardTool;component/Assets/Fonts/SourceHanSans/", StringComparison.OrdinalIgnoreCase)
-                || glyph.Weight != weight || run.GlyphRun.GlyphIndices.Contains((ushort)0))
-                throw new InvalidOperationException($"字体未使用对应内置字重或出现缺字：{glyph.FontUri} / {glyph.Weight}");
-            Console.WriteLine($"实际渲染 {weight}: {glyph.FontUri} / {glyph.Weight}");
+            if (!glyph.FamilyNames.Values.Any(name => name is "Microsoft YaHei" or "微软雅黑")
+                || !glyph.FontUri.IsFile || run.GlyphRun.GlyphIndices.Contains((ushort)0))
+                throw new InvalidOperationException($"字体未使用系统微软雅黑或出现缺字：{glyph.FontUri} / {glyph.Weight}");
+            // 系统微软雅黑没有 Medium 字体文件，由 WPF 匹配可用字重；不改界面请求的字重。
+            Console.WriteLine($"请求 {weight}，实际渲染：{glyph.FontUri} / {glyph.Weight}");
         }
         output.DrawDrawing(visual.Drawing);
     }
