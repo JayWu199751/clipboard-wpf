@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="E2eT15" />
     <ProjectReference Include="..\ClipboardTool.Application\ClipboardTool.Application.csproj" />
     <ProjectReference Include="..\ClipboardTool.Domain\ClipboardTool.Domain.csproj" />
     <ProjectReference Include="..\ClipboardTool.Infrastructure.Windows\ClipboardTool.Infrastructure.Windows.csproj" />

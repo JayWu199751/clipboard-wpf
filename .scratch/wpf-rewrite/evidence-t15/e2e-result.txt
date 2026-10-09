@@ -1,0 +1,63 @@
+PASS 真实 App 启动与交互退出（verbose=False）
+PASS 关键路径读数：start ui=wpf（verbose=False）
+PASS 关键路径读数：window-ready ui=wpf（verbose=False）
+PASS 关键路径读数：wpf-ui-ready（verbose=False）
+PASS 关键路径读数：warmup ui=wpf docked=True（verbose=False）
+PASS 关键路径读数：tray-ready added=True（verbose=False）
+PASS 关键路径读数：hotkey_register accel=（verbose=False）
+PASS 关键路径读数：summon-req src=hotkey（verbose=False）
+PASS 关键路径读数：summon-run src=hotkey latency_ms=（verbose=False）
+PASS 关键路径读数：summon-req src=tray-click（verbose=False）
+PASS 关键路径读数：summon-req src=tray-menu（verbose=False）
+PASS 关键路径读数：summon-req src=instance（verbose=False）
+PASS 关键路径读数：summon-landed first=True final=True（verbose=False）
+PASS 关键路径读数：actual=（verbose=False）
+PASS 关键路径读数：hide reason=hotkey-toggle（verbose=False）
+PASS 关键路径读数：exit-requested source=tray-menu code=0（verbose=False）
+PASS 关键路径读数：exit code=0（verbose=False）
+PASS 关键路径读数：instance-secondary delivery=True（verbose=False）
+PASS 详细事件门禁与启动环境一致
+PASS 每条读数均带 PID
+PASS 真实 App 启动与交互退出（verbose=True）
+PASS 关键路径读数：start ui=wpf（verbose=True）
+PASS 关键路径读数：window-ready ui=wpf（verbose=True）
+PASS 关键路径读数：wpf-ui-ready（verbose=True）
+PASS 关键路径读数：warmup ui=wpf docked=True（verbose=True）
+PASS 关键路径读数：tray-ready added=True（verbose=True）
+PASS 关键路径读数：hotkey_register accel=（verbose=True）
+PASS 关键路径读数：summon-req src=hotkey（verbose=True）
+PASS 关键路径读数：summon-run src=hotkey latency_ms=（verbose=True）
+PASS 关键路径读数：summon-req src=tray-click（verbose=True）
+PASS 关键路径读数：summon-req src=tray-menu（verbose=True）
+PASS 关键路径读数：summon-req src=instance（verbose=True）
+PASS 关键路径读数：summon-landed first=True final=True（verbose=True）
+PASS 关键路径读数：actual=（verbose=True）
+PASS 关键路径读数：hide reason=hotkey-toggle（verbose=True）
+PASS 关键路径读数：exit-requested source=tray-menu code=0（verbose=True）
+PASS 关键路径读数：exit code=0（verbose=True）
+PASS 关键路径读数：instance-secondary delivery=True（verbose=True）
+PASS 详细事件门禁与启动环境一致
+PASS 真实剪贴板单轮详细读数
+PASS 任务收敛详细读数且开发构建不改任务
+PASS 每条读数均带 PID
+PASS 隔离单实例门占用成功
+PASS 第二实例投递超时保留退出码 1
+PASS 投递失败有完整读数
+PASS dispatcher 未处理异常保留崩溃退出行为 code=-532462766
+PASS dispatcher 异常类型与真实堆栈可追溯
+PASS dispatcher 全局异常钩子已接线
+PASS 异常消息中的正文不写入日志
+PASS 崩溃在 vital 中留痕
+PASS background 未处理异常保留崩溃退出行为 code=-532462766
+PASS background 异常类型与真实堆栈可追溯
+PASS background 全局异常钩子已接线
+PASS 异常消息中的正文不写入日志
+PASS 崩溃在 vital 中留痕
+PASS 未观察任务异常留痕且保留运行时非终止策略
+PASS 真实任务异常钩子保留嵌套堆栈
+PASS 任务异常不写入正文
+PASS 日志路径不可写时真实 App 仍能启动、呼出和退出
+PASS 两个独立进程同时写入并轮转成功
+PASS 跨进程轮转与追加无缺行或截断
+PASS 轮转仅保留 diag.log 与 diag.log.1
+全部 F40 隔离进程验证通过；未修改用户存档、设置和计划任务。

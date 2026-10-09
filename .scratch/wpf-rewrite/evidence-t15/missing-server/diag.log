@@ -1,0 +1,6 @@
+2026-10-09T16:50:06.6221081+00:00 vital pid=6136 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:06.6763903+00:00 vital pid=6136 startup-channel elevated=False autostart=False
+2026-10-09T16:50:06.6773549+00:00 vital pid=6136 instance-secondary delivery=requested
+2026-10-09T16:50:11.6755819+00:00 vital pid=6136 instance-secondary delivery=False
+2026-10-09T16:50:11.7075636+00:00 vital pid=6136 exit-requested source=secondary-instance code=1
+2026-10-09T16:50:11.7105367+00:00 vital pid=6136 exit code=1

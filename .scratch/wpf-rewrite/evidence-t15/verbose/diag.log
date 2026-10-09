@@ -1,0 +1,66 @@
+2026-10-09T16:50:05.2392893+00:00 vital pid=3760 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:05.2915061+00:00 vital pid=3760 startup-channel elevated=False autostart=False
+2026-10-09T16:50:05.5680237+00:00 verbose pid=3760 clipboard-source ready=True
+2026-10-09T16:50:05.6219269+00:00 vital pid=3760 tray-ready added=True
+2026-10-09T16:50:05.7900550+00:00 vital pid=3760 hotkey_register accel=Control+Alt+Shift+F12 ok=True
+2026-10-09T16:50:05.7905429+00:00 vital pid=3760 window-ready ui=wpf hwnd=0x33082E
+2026-10-09T16:50:05.8129660+00:00 vital pid=3760 warmup ui=wpf docked=True readable=True actual=2590,48,3300,1466
+2026-10-09T16:50:05.8145291+00:00 verbose pid=3760 startup-converge development=True elevated=False intent=False
+2026-10-09T16:50:05.8163659+00:00 vital pid=3760 wpf-ui-ready
+2026-10-09T16:50:05.8615856+00:00 vital pid=3760 summon-req src=hotkey
+2026-10-09T16:50:05.8623897+00:00 vital pid=3760 summon-run src=hotkey latency_ms=0.7
+2026-10-09T16:50:05.8650397+00:00 verbose pid=3760 hotkey_register accel=Up ok=True
+2026-10-09T16:50:05.8653790+00:00 verbose pid=3760 hotkey_register accel=Down ok=True
+2026-10-09T16:50:05.8658840+00:00 verbose pid=3760 hotkey_register accel=Enter ok=True
+2026-10-09T16:50:05.8662302+00:00 verbose pid=3760 hotkey_register accel=Esc ok=True
+2026-10-09T16:50:05.8664728+00:00 verbose pid=3760 hotkey_register accel=Delete ok=True
+2026-10-09T16:50:05.8667048+00:00 verbose pid=3760 hotkey_register accel=Z ok=True
+2026-10-09T16:50:05.8669902+00:00 verbose pid=3760 hotkey_register accel=B ok=True
+2026-10-09T16:50:05.8688143+00:00 verbose pid=3760 hotkey_register accel=Space ok=True
+2026-10-09T16:50:05.9204693+00:00 vital pid=3760 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:05.9257499+00:00 vital pid=3760 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:05.9265337+00:00 vital pid=3760 summon-req src=tray-click
+2026-10-09T16:50:05.9268206+00:00 vital pid=3760 summon-run src=tray-click latency_ms=0.3
+2026-10-09T16:50:05.9271058+00:00 verbose pid=3760 hotkey_register accel=Up ok=True
+2026-10-09T16:50:05.9273442+00:00 verbose pid=3760 hotkey_register accel=Down ok=True
+2026-10-09T16:50:05.9275840+00:00 verbose pid=3760 hotkey_register accel=Enter ok=True
+2026-10-09T16:50:05.9280226+00:00 verbose pid=3760 hotkey_register accel=Esc ok=True
+2026-10-09T16:50:05.9282568+00:00 verbose pid=3760 hotkey_register accel=Delete ok=True
+2026-10-09T16:50:05.9284701+00:00 verbose pid=3760 hotkey_register accel=Z ok=True
+2026-10-09T16:50:05.9287205+00:00 verbose pid=3760 hotkey_register accel=B ok=True
+2026-10-09T16:50:05.9289434+00:00 verbose pid=3760 hotkey_register accel=Space ok=True
+2026-10-09T16:50:05.9327501+00:00 vital pid=3760 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:05.9348052+00:00 vital pid=3760 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:06.0095357+00:00 vital pid=3760 summon-req src=tray-menu
+2026-10-09T16:50:06.0100738+00:00 vital pid=3760 summon-run src=tray-menu latency_ms=0.5
+2026-10-09T16:50:06.0104536+00:00 verbose pid=3760 hotkey_register accel=Up ok=True
+2026-10-09T16:50:06.0106891+00:00 verbose pid=3760 hotkey_register accel=Down ok=True
+2026-10-09T16:50:06.0109984+00:00 verbose pid=3760 hotkey_register accel=Enter ok=True
+2026-10-09T16:50:06.0117670+00:00 verbose pid=3760 hotkey_register accel=Esc ok=True
+2026-10-09T16:50:06.0122589+00:00 verbose pid=3760 hotkey_register accel=Delete ok=True
+2026-10-09T16:50:06.0126201+00:00 verbose pid=3760 hotkey_register accel=Z ok=True
+2026-10-09T16:50:06.0128986+00:00 verbose pid=3760 hotkey_register accel=B ok=True
+2026-10-09T16:50:06.0131051+00:00 verbose pid=3760 hotkey_register accel=Space ok=True
+2026-10-09T16:50:06.0184574+00:00 vital pid=3760 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:06.0749911+00:00 vital pid=3760 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:06.2309355+00:00 vital pid=32388 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:06.2807677+00:00 vital pid=32388 startup-channel elevated=False autostart=False
+2026-10-09T16:50:06.2817196+00:00 vital pid=32388 instance-secondary delivery=requested
+2026-10-09T16:50:06.2887877+00:00 vital pid=3760 summon-req src=instance
+2026-10-09T16:50:06.2894901+00:00 vital pid=3760 summon-run src=instance latency_ms=0.7
+2026-10-09T16:50:06.2896533+00:00 vital pid=32388 instance-secondary delivery=True
+2026-10-09T16:50:06.2900462+00:00 verbose pid=3760 hotkey_register accel=Up ok=True
+2026-10-09T16:50:06.2904676+00:00 vital pid=32388 exit-requested source=secondary-instance code=0
+2026-10-09T16:50:06.2905668+00:00 verbose pid=3760 hotkey_register accel=Down ok=True
+2026-10-09T16:50:06.2910460+00:00 verbose pid=3760 hotkey_register accel=Enter ok=True
+2026-10-09T16:50:06.2912922+00:00 verbose pid=3760 hotkey_register accel=Esc ok=True
+2026-10-09T16:50:06.2915035+00:00 verbose pid=3760 hotkey_register accel=Delete ok=True
+2026-10-09T16:50:06.2917088+00:00 verbose pid=3760 hotkey_register accel=Z ok=True
+2026-10-09T16:50:06.2919101+00:00 verbose pid=3760 hotkey_register accel=B ok=True
+2026-10-09T16:50:06.2921194+00:00 verbose pid=3760 hotkey_register accel=Space ok=True
+2026-10-09T16:50:06.2930519+00:00 vital pid=32388 exit code=0
+2026-10-09T16:50:06.2952165+00:00 vital pid=3760 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:06.3421681+00:00 verbose pid=3760 clipboard-round settled=True baseline_pending=False
+2026-10-09T16:50:06.3616099+00:00 vital pid=3760 exit-requested source=tray-menu code=0
+2026-10-09T16:50:06.3686596+00:00 vital pid=3760 executor-exit
+2026-10-09T16:50:06.3810959+00:00 vital pid=3760 exit code=0

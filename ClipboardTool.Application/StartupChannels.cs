@@ -87,12 +87,15 @@ public interface IScheduledTaskPort
 /// 静默启动通道编排（F36）：开关按三态落地，启动收敛按判定表执行。
 /// 失败回退 = 意图不生效（调用方保持原快照），事实保持原样可重试。
 /// </summary>
-public sealed class StartupService(IScheduledTaskPort port, string taskName, string currentExePath)
+public sealed class StartupService(IScheduledTaskPort port, string taskName, string currentExePath,
+    DiagnosticLog? diagnostics = null)
 {
+    private readonly DiagnosticLog _diagnostics = diagnostics ?? DiagnosticLog.None;
     /// <summary>托盘「开机启动」开关：按三态处理；ExecuteNow 失败时 IntentApplied=false（回退）。</summary>
     public StartupOutcome Toggle(bool isDevelopmentBuild, bool isElevated, bool newIntent)
     {
         var mode = StartupChannelRules.DecideToggle(isDevelopmentBuild, isElevated);
+        _diagnostics.Verbose($"startup-toggle mode={mode} intent={newIntent}");
         if (mode != StartupToggleMode.ExecuteNow)
         {
             return new StartupOutcome(true, StartupTaskAction.None, Ok: true, null); // 只记意图/延后
@@ -103,6 +106,7 @@ public sealed class StartupService(IScheduledTaskPort port, string taskName, str
     /// <summary>启动收敛：提权生产构建下把事实对齐到持久化意图；其余通道不动事实。</summary>
     public StartupOutcome ConvergeOnStartup(bool isDevelopmentBuild, bool isElevated, bool intent)
     {
+        _diagnostics.Verbose($"startup-converge development={isDevelopmentBuild} elevated={isElevated} intent={intent}");
         if (isDevelopmentBuild || !isElevated)
         {
             return new StartupOutcome(true, StartupTaskAction.None, Ok: true, null);
@@ -113,14 +117,17 @@ public sealed class StartupService(IScheduledTaskPort port, string taskName, str
     private StartupOutcome Execute(bool intent, bool deferOnFailure)
     {
         var action = StartupChannelRules.DecideConvergence(intent, port.ReadState(taskName), currentExePath);
+        _diagnostics.Verbose($"startup-action action={action}");
         if (action == StartupTaskAction.None)
         {
             return new StartupOutcome(true, action, Ok: true, null);
         }
         if (port.Register(taskName, currentExePath, StartupChannelRules.WithLogonTrigger(action)))
         {
+            _diagnostics.Verbose($"startup-register action={action} ok=True");
             return new StartupOutcome(true, action, Ok: true, null);
         }
+        _diagnostics.Verbose($"startup-register action={action} ok=False");
         return new StartupOutcome(
             IntentApplied: deferOnFailure, // 启动收敛不回退持久化意图（下次启动再试）；开关路径回退
             Action: action,

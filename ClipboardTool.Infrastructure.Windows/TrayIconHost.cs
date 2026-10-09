@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using ClipboardTool.Application;
 
 namespace ClipboardTool.Infrastructure.Windows;
 
@@ -36,6 +37,7 @@ public sealed class TrayIconHost : IDisposable
     private IntPtr _hwnd;
     private bool _added;
     private IntPtr _currentIcon;
+    private readonly DiagnosticLog _diagnostics;
 
     /// <summary>左键抬起/双击呼出（decider OpensPanel 判定过才触发）。</summary>
     public event Action? SummonRequested;
@@ -48,11 +50,13 @@ public sealed class TrayIconHost : IDisposable
 
     public TrayIconHost(string tooltip,
         Action<IReadOnlyList<TrayMenuItem>, Action<string>> showMenu,
-        TrayIconSync? iconSync = null)
+        TrayIconSync? iconSync = null,
+        DiagnosticLog? diagnostics = null)
     {
         _tooltip = tooltip;
         _showMenu = showMenu;
         _iconSync = iconSync ?? new TrayIconSync(new PngIconFactory());
+        _diagnostics = diagnostics ?? DiagnosticLog.None;
 
         _source = new HwndSource(0, 0, 0, 0, 0, 0, 0, "ClipboardToolTray", IntPtr.Zero);
         _hwnd = _source.Handle;
@@ -60,6 +64,7 @@ public sealed class TrayIconHost : IDisposable
 
         var data = BuildFullIconData(NativeMethods.LoadIcon(IntPtr.Zero, (IntPtr)32512)); // IDI_APPLICATION 占位，SyncIcon 落正式图
         _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref data);
+        _diagnostics.Vital($"tray-ready added={_added}");
     }
 
     /// <summary>重建菜单（文案变了就整份重建）。空 spec 只清空。</summary>
@@ -82,6 +87,7 @@ public sealed class TrayIconHost : IDisposable
             // 初次 NIM_ADD 败了（如自启早于任务栏就绪且广播未至）：正式图直接整只补上
             var add = BuildFullIconData(hicon);
             _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref add);
+            _diagnostics.Vital($"tray-readd source=sync added={_added}");
             if (_added)
             {
                 _currentIcon = hicon;
@@ -133,6 +139,7 @@ public sealed class TrayIconHost : IDisposable
             : NativeMethods.LoadIcon(IntPtr.Zero, (IntPtr)32512);
         var add = BuildFullIconData(hicon);
         _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref add);
+        _diagnostics.Vital($"tray-readd source=taskbar-created added={_added}");
     }
 
     private static uint RegisterTaskbarCreatedMessage()

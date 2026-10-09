@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Interop;
@@ -33,6 +34,27 @@ public partial class App : System.Windows.Application
     private DispatcherTimer? _captureSuccessTimer;
     private StartupService? _startup;
     private bool _isElevated;
+    private readonly string _dataDir;
+    private readonly DiagnosticLog _diagnostics;
+    private readonly ProcessDiagnostics _processDiagnostics;
+    private readonly string _instanceScope;
+    private bool _exitRequested;
+
+    public App() : this(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardTool"),
+        string.Empty) { }
+
+    // 隔离 E2E 宿主复用真实 App 启动链；目录与实例通道均独立，绝不接管用户实例。
+    internal App(string dataDirectory, string instanceScope)
+    {
+        _dataDir = dataDirectory;
+        _instanceScope = instanceScope;
+        _diagnostics = new DiagnosticLog(new FileDiagnosticSink(_dataDir),
+            Environment.GetEnvironmentVariable("CLIPBOARD_TOOL_DIAG"), Environment.ProcessId);
+        // 在生成的 Main 调用 InitializeComponent 前接好异常取证，资源初始化失败也有现场。
+        _processDiagnostics = new ProcessDiagnostics(_diagnostics, Dispatcher);
+        _diagnostics.Vital($"start ui=wpf development={IsDevelopmentBuild} exe={Environment.ProcessPath}");
+    }
 
     /// <summary>开发构建不触碰计划任务事实（F36 三态之一：只记意图）。</summary>
     private static readonly bool IsDevelopmentBuild =
@@ -46,10 +68,6 @@ public partial class App : System.Windows.Application
     /// 隐藏面板时消费。粘贴链路经端口读取同一份，不再有第二份存储。</summary>
     private FocusTarget? CapturedFocus => _coordinator?.FocusTargetSnapshot;
 
-    // —— 启动诊断日志（startup.log）已按 F39/F40 收尾移除（T08 交接项）：
-    //    日志仅为 T08 真机排查启动问题临时引入，移除前已冷启动验证启动路径无日志依赖。
-    //    崩溃取证语义（F40 panic.log）未实现，见验收矩阵 F39/F40 行。
-
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -58,8 +76,7 @@ public partial class App : System.Windows.Application
         //    投递呼出请求后退出（请求仅接受本用户：pipe 名含用户 SID；提权是同一 SID 天然互通）。
         //    服务端未就绪时客户端有限等待（最多 5 秒，legacy 口径）；此处在启动路径上同步等待是
         //    有意为之：投递完成前第二实例不能退。
-        var dataDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardTool");
+        var dataDir = _dataDir;
         _settingsStore = new JsonStore(dataDir);
         _settings = _settingsStore.ReadSettings();
 
@@ -70,13 +87,15 @@ public partial class App : System.Windows.Application
         _startup = new StartupService(
             new ScheduledTaskRegistrar(),
             ScheduledTaskBuilder.DefaultTaskName,
-            Environment.ProcessPath ?? string.Empty);
+            Environment.ProcessPath ?? string.Empty, _diagnostics);
+        _diagnostics.Vital($"startup-channel elevated={_isElevated} autostart={_settings.AutoStart}");
 
         var sid = identity.User?.Value ?? string.Empty;
-        var summonPipe = $"ClipboardTool-{sid}-summon";
-        var gate = new SingleInstanceGate($"ClipboardTool-{sid}-instance");
+        var summonPipe = $"ClipboardTool-{sid}{_instanceScope}-summon";
+        var gate = new SingleInstanceGate($"ClipboardTool-{sid}{_instanceScope}-instance");
         if (!gate.TryAcquire())
         {
+            _diagnostics.Vital("instance-secondary delivery=requested");
             // 第二实例的职责就是把呼出请求投进 pipe 后退出：投递异步进行（不阻塞 UI 线程），
             // 退出时机挂在投递完成回调上——投递完成前退出会让 pipe 丢信（既有语义）。
             // legacy 5s 口径用超时取消表达（SummonAsync 内部有限等待）；异常与超时同样按
@@ -89,16 +108,17 @@ public partial class App : System.Windows.Application
                     {
                         _ = t.Exception; // 观察异常避免未观察 Task 异常；按未送达收场
                     }
-                    Shutdown(delivered ? 0 : 1);
+                    _diagnostics.Vital($"instance-secondary delivery={delivered}");
+                    RequestExit("secondary-instance", delivered ? 0 : 1);
                 }, TaskScheduler.FromCurrentSynchronizationContext());
             return;
         }
         var summonServer = new SummonServer(summonPipe);
-        summonServer.SummonReceived += () => Dispatcher.BeginInvoke(SummonFromTray);
+        summonServer.SummonReceived += () => RequestSummon("instance");
 
-        _panel = new PanelWindow();
+        _panel = new PanelWindow(_diagnostics);
         _hotkeys = new HotkeyExecutor();
-        _executor = new ModeExecutor();
+        _executor = new ModeExecutor(_diagnostics);
         _coordinator = new PanelCoordinator(new PanelModesHost(this), new DispatcherDelayScheduler(Dispatcher));
 
         // —— 主题（F26–F28）：ThemeService 单一权威；注册表监听线程的广播归队 UI 线程。
@@ -134,7 +154,7 @@ public partial class App : System.Windows.Application
         _watch = new ClipboardWatchService(
             new ClipboardReader(), new ClipboardSequenceReader(), _history, new ClipboardWriter(),
             // 来源应用采集（F06）：复制处理时取前台窗口信息，失败降级未知来源
-            new ForegroundSource());
+            new ForegroundSource(), _diagnostics);
         _paste = new PasteService(
             _history,
             _watch,
@@ -193,13 +213,15 @@ public partial class App : System.Windows.Application
         {
             _hotkeys.Attach(_panel);
             _coordinator.SetToggleShortcut(ParsedToggle());
+            _diagnostics.Vital($"window-ready ui=wpf hwnd=0x{_panel.Hwnd.ToInt64():X}");
         };
+        _panel.ContentRendered += (_, _) => _diagnostics.Vital("wpf-ui-ready");
 
         // —— 托盘（F29/F30/F33）：完整菜单六项 + 主题子菜单；五档精确图标按主屏缩放取档；
         //    主题/缩放变化经 TrayIconSync 同键去重后落地。 ——
         _trayMenu = new TrayContextMenu(Resources);
-        _tray = new TrayIconHost("ClipboardTool", _trayMenu.Show);
-        _tray.SummonRequested += SummonFromTray;
+        _tray = new TrayIconHost("ClipboardTool", _trayMenu.Show, diagnostics: _diagnostics);
+        _tray.SummonRequested += () => RequestSummon("tray-click");
         _tray.PointerEntered += () => Dispatcher.BeginInvoke(() => SyncTrayIcon(_theme!.IsTrayDark));
         _tray.MenuItemSelected += id => Dispatcher.BeginInvoke(() => OnTrayMenu(id));
         RebuildTrayMenu();
@@ -213,6 +235,9 @@ public partial class App : System.Windows.Application
         retry.Start();
 
         _panel.Show();
+        var readable = WindowPlacer.TryGetPhysicalRect(_panel.Hwnd, out var warmupRect);
+        _diagnostics.Vital($"warmup ui=wpf docked={_panel.IsDocked} readable={readable} " +
+            $"actual={warmupRect.Left},{warmupRect.Top},{warmupRect.Right},{warmupRect.Bottom}");
         summonServer.Start();
 
         // 启动收敛放尾部：一次 schtasks 查询（无动作时不注册），结果只记诊断不阻断启动
@@ -221,15 +246,41 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _panel = null;
-        _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
-        _hotkeys?.Dispose();
-        _clipboardSource?.Dispose();
-        _mouseHook?.Dispose();
-        _executor?.Dispose();
-        _trayMenu?.Dispose();
-        _tray?.Dispose();
-        base.OnExit(e);
+        LogExitRequest("wpf", e.ApplicationExitCode);
+        try
+        {
+            _panel = null;
+            _deletion?.Dispose(); // 未到期条目保留存档（6 秒内强退不提交删除，F25）
+            _hotkeys?.Dispose();
+            _clipboardSource?.Dispose();
+            _mouseHook?.Dispose();
+            _executor?.Dispose();
+            _trayMenu?.Dispose();
+            _tray?.Dispose();
+            base.OnExit(e);
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.Panic("exit-cleanup", exception);
+            throw; // 保留全局异常钩子，让 CLR 记录实际异常退出。
+        }
+        _processDiagnostics.CompleteExit(e.ApplicationExitCode);
+        _processDiagnostics.Dispose();
+    }
+
+    private void RequestExit(string source, int code = 0)
+    {
+        LogExitRequest(source, code);
+        Shutdown(code);
+    }
+
+    private void LogExitRequest(string source, int code)
+    {
+        if (!_exitRequested)
+        {
+            _exitRequested = true;
+            _diagnostics.Vital($"exit-requested source={source} code={code}");
+        }
     }
 
     // —— 设置（F37 落盘口径）：内存快照单点写，落盘与托盘菜单刷新随行 ——
@@ -296,7 +347,7 @@ public partial class App : System.Windows.Application
 
     private void ApplyPanelTheme(bool dark)
     {
-        var source = new Uri(dark ? "Themes/Dark.xaml" : "Themes/Light.xaml", UriKind.Relative);
+        var source = new Uri(dark ? "/ClipboardTool;component/Themes/Dark.xaml" : "/ClipboardTool;component/Themes/Light.xaml", UriKind.Relative);
         Resources.MergedDictionaries[0] = new ResourceDictionary { Source = source };
     }
 
@@ -336,7 +387,7 @@ public partial class App : System.Windows.Application
         switch (id)
         {
             case "show":
-                SummonFromTray();
+                RequestSummon("tray-menu");
                 break;
             case "change-shortcut":
                 EnterShortcutCapture();
@@ -349,7 +400,7 @@ public partial class App : System.Windows.Application
                 _deletion!.ClearAll();
                 break;
             case "quit":
-                Shutdown();
+                RequestExit("tray-menu");
                 break;
             default:
                 if (TrayIconDecider.ThemeOfMenuId(id) is { } theme)
@@ -372,6 +423,8 @@ public partial class App : System.Windows.Application
         {
             return;
         }
+        _diagnostics.Vital("summon-req src=shortcut-capture");
+        _diagnostics.Vital("summon-run src=shortcut-capture latency_ms=0");
         _panel.Summon();
         _panel.ShowCaptureOverlay();
         FocusAdapter.SetNoActivate(_panel, on: false);
@@ -424,10 +477,12 @@ public partial class App : System.Windows.Application
     /// 呼出时序（legacy show_on capture=true）：先拍焦点快照（失败静默）→ 协调器 Show
     /// （重置搜索/备注态 + 键位差量 + panel:shown 呼出重置）→ 面板几何落地。
     /// </summary>
-    private void SummonPanel()
+    private void SummonPanel(string source, long requestedAt)
     {
+        _diagnostics.Vital($"summon-run src={source} latency_ms={Stopwatch.GetElapsedTime(requestedAt).TotalMilliseconds:F1}");
         if (_panel is not { IsDocked: true })
         {
+            _diagnostics.Vital($"summon-skipped reason={(_panel is null ? "not-ready" : "already-visible")}");
             return;
         }
         _coordinator!.EnsureFocusSnapshot();
@@ -435,11 +490,27 @@ public partial class App : System.Windows.Application
         _panel.Summon();
     }
 
-    private void SummonFromTray()
+    private void RequestSummon(string source)
     {
-        if (_panel is { IsDocked: true })
+        var requestedAt = Stopwatch.GetTimestamp();
+        _diagnostics.Vital($"summon-req src={source}");
+        if (Dispatcher.CheckAccess())
         {
-            SummonPanel();
+            SummonPanel(source, requestedAt);
+            return;
+        }
+        try
+        {
+            var operation = Dispatcher.BeginInvoke(() => SummonPanel(source, requestedAt));
+            operation.Aborted += (_, _) => _diagnostics.Vital($"dispatch-lost action=summon src={source}");
+            if (operation.Status == DispatcherOperationStatus.Aborted)
+            {
+                _diagnostics.Vital($"dispatch-lost action=summon src={source}");
+            }
+        }
+        catch (Exception exception)
+        {
+            _diagnostics.Vital($"dispatch-failed action=summon src={source} type={exception.GetType().FullName}");
         }
     }
 
@@ -447,7 +518,7 @@ public partial class App : System.Windows.Application
     /// 停靠编排（Esc 停靠 / 呼出键收起 / 粘贴成功收起共用）：先退输入态并注销导航键，
     /// 再几何落位；restoreFocus=true 时快照由协调器归还并消费。
     /// </summary>
-    private void DockPanel(bool restoreFocus)
+    private void DockPanel(bool restoreFocus, string reason)
     {
         if (_panel is not { IsDocked: false })
         {
@@ -455,10 +526,13 @@ public partial class App : System.Windows.Application
         }
         _coordinator!.Hide(restoreFocus);
         _panel.Dock();
+        var readable = WindowPlacer.TryGetPhysicalRect(_panel.Hwnd, out var actual);
+        _diagnostics.Vital($"hide reason={reason} restore_focus={restoreFocus} readable={readable} " +
+            $"actual={actual.Left},{actual.Top},{actual.Right},{actual.Bottom}");
     }
 
     /// <summary>浏览态 Esc 停靠（宿主事件入口）。</summary>
-    private void DockFromPanel() => DockPanel(restoreFocus: true);
+    private void DockFromPanel() => DockPanel(restoreFocus: true, reason: "escape");
 
     /// <summary>
     /// 单击面板外部 → 停靠（F17）：全局钩子上报的一次真实按下。判定全部在 Domain 纯规则
@@ -481,7 +555,7 @@ public partial class App : System.Windows.Application
         {
             return;
         }
-        DockPanel(restoreFocus: true);
+        DockPanel(restoreFocus: true, reason: "outside-click");
     }
 
     private void EnterSearch() => _ = _coordinator!.EnterInput(PanelMode.Search);
@@ -525,11 +599,11 @@ public partial class App : System.Windows.Application
         {
             if (_panel is { IsDocked: true })
             {
-                SummonPanel();
+                RequestSummon("hotkey");
             }
             else
             {
-                DockPanel(restoreFocus: true);
+                DockPanel(restoreFocus: true, reason: "hotkey-toggle");
             }
         }
         else
@@ -555,7 +629,7 @@ public partial class App : System.Windows.Application
     private void HidePanelAfterPaste()
     {
         // 粘贴已把焦点归还原窗口，隐藏时不再重复恢复（F12）；归队 UI 线程执行停靠
-        Dispatcher.BeginInvoke(() => DockPanel(restoreFocus: false));
+        Dispatcher.BeginInvoke(() => DockPanel(restoreFocus: false, reason: "paste-success"));
     }
 
     private void ShowStatus(string message)
@@ -574,7 +648,17 @@ public partial class App : System.Windows.Application
             app._hotkeys!.ApplyPlan(
                 new HotkeyDiff([combo], []),
                 _ => app.OnKeyAction(action));
-            return app._hotkeys.EffectiveKeys.Contains(combo);
+            var registered = app._hotkeys.EffectiveKeys.Contains(combo);
+            var message = $"hotkey_register accel={AccelCodec.Encode(combo)} ok={registered}";
+            if (action.Kind == PanelKeyKind.Toggle)
+            {
+                app._diagnostics.Vital(message);
+            }
+            else
+            {
+                app._diagnostics.Verbose(message);
+            }
+            return registered;
         }
 
         public void UnregisterKey(HotkeyCombo combo) =>

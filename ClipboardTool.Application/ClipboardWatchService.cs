@@ -17,6 +17,7 @@ public sealed class ClipboardWatchService
     private readonly HistoryService _history;
     private readonly IClipboardWriter _writer;
     private readonly IForegroundSource _foreground;
+    private readonly DiagnosticLog _diagnostics;
     private readonly PollBaseline _baseline = new();
     private readonly object _roundGate = new();
     private bool _baselineSyncPending;
@@ -26,13 +27,15 @@ public sealed class ClipboardWatchService
         IClipboardSequence sequence,
         HistoryService history,
         IClipboardWriter writer,
-        IForegroundSource foreground)
+        IForegroundSource foreground,
+        DiagnosticLog? diagnostics = null)
     {
         _reader = reader;
         _sequence = sequence;
         _history = history;
         _writer = writer;
         _foreground = foreground;
+        _diagnostics = diagnostics ?? DiagnosticLog.None;
     }
 
     /// <summary>
@@ -45,6 +48,7 @@ public sealed class ClipboardWatchService
         source.RoundHandler = PollRound;
         source.Start(ready =>
         {
+            _diagnostics.Verbose($"clipboard-source ready={ready}");
             if (!ready)
             {
                 InstallPollingFallback();
@@ -128,10 +132,13 @@ public sealed class ClipboardWatchService
         {
             try
             {
-                return PollRoundCore();
+                var settled = PollRoundCore();
+                _diagnostics.Verbose($"clipboard-round settled={settled} baseline_pending={_baselineSyncPending}");
+                return settled;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
+                _diagnostics.Verbose($"clipboard-round failed type={exception.GetType().FullName}");
                 // 单轮异常不终止监听；也不排重试——免得同一次异常把重试打成死循环（legacy catch_unwind 语义）
                 return true;
             }

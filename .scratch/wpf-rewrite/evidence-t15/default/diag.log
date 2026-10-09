@@ -1,0 +1,31 @@
+2026-10-09T16:50:03.8134443+00:00 vital pid=5312 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:03.8688824+00:00 vital pid=5312 startup-channel elevated=False autostart=False
+2026-10-09T16:50:04.1977423+00:00 vital pid=5312 tray-ready added=True
+2026-10-09T16:50:04.3709496+00:00 vital pid=5312 hotkey_register accel=Control+Alt+Shift+F12 ok=True
+2026-10-09T16:50:04.3714144+00:00 vital pid=5312 window-ready ui=wpf hwnd=0x1709C6
+2026-10-09T16:50:04.3929865+00:00 vital pid=5312 warmup ui=wpf docked=True readable=True actual=2590,48,3300,1466
+2026-10-09T16:50:04.3959573+00:00 vital pid=5312 wpf-ui-ready
+2026-10-09T16:50:04.4368336+00:00 vital pid=5312 summon-req src=hotkey
+2026-10-09T16:50:04.4381945+00:00 vital pid=5312 summon-run src=hotkey latency_ms=1.2
+2026-10-09T16:50:04.4912390+00:00 vital pid=5312 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:04.4958222+00:00 vital pid=5312 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:04.4969065+00:00 vital pid=5312 summon-req src=tray-click
+2026-10-09T16:50:04.4972746+00:00 vital pid=5312 summon-run src=tray-click latency_ms=0.3
+2026-10-09T16:50:04.5013782+00:00 vital pid=5312 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:04.5029369+00:00 vital pid=5312 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:04.6071819+00:00 vital pid=5312 summon-req src=tray-menu
+2026-10-09T16:50:04.6076769+00:00 vital pid=5312 summon-run src=tray-menu latency_ms=0.5
+2026-10-09T16:50:04.6127674+00:00 vital pid=5312 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:04.6588279+00:00 vital pid=5312 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-09T16:50:04.8197325+00:00 vital pid=26736 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:04.8704264+00:00 vital pid=26736 startup-channel elevated=False autostart=False
+2026-10-09T16:50:04.8714131+00:00 vital pid=26736 instance-secondary delivery=requested
+2026-10-09T16:50:04.8783527+00:00 vital pid=5312 summon-req src=instance
+2026-10-09T16:50:04.8789908+00:00 vital pid=5312 summon-run src=instance latency_ms=0.6
+2026-10-09T16:50:04.8791165+00:00 vital pid=26736 instance-secondary delivery=True
+2026-10-09T16:50:04.8799430+00:00 vital pid=26736 exit-requested source=secondary-instance code=0
+2026-10-09T16:50:04.8819292+00:00 vital pid=5312 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True
+2026-10-09T16:50:04.8824431+00:00 vital pid=26736 exit code=0
+2026-10-09T16:50:04.9674277+00:00 vital pid=5312 exit-requested source=tray-menu code=0
+2026-10-09T16:50:04.9751966+00:00 vital pid=5312 executor-exit
+2026-10-09T16:50:04.9860563+00:00 vital pid=5312 exit code=0

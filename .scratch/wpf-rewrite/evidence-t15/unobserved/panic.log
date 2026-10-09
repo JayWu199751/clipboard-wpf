@@ -1,0 +1,7 @@
+2026-10-09T16:50:39.5761950+00:00 panic pid=31800 source=unobserved-task type=System.AggregateException hresult=0x80131500
+caused-by type=System.InvalidOperationException hresult=0x80131509
+   at Program.Crash() in C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\Program.cs:line 286
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunFromThreadPoolDispatchLoop(Thread threadPoolThread, ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)

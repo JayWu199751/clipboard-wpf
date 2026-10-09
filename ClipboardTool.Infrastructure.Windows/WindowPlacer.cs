@@ -1,3 +1,4 @@
+using ClipboardTool.Application;
 using ClipboardTool.Domain.Geometry;
 
 namespace ClipboardTool.Infrastructure.Windows;
@@ -30,7 +31,8 @@ public static class WindowPlacer
     }
 
     /// <summary>呼出落地：按意图落位并回读验证；失败重试一次，仍失败返回 false（处置归调用方）。</summary>
-    public static bool PlaceSummonDip(IntPtr hwnd, ScreenMetrics target, DipPoint positionDip, double widthDip, double heightDip)
+    public static bool PlaceSummonDip(IntPtr hwnd, ScreenMetrics target, DipPoint positionDip, double widthDip, double heightDip,
+        DiagnosticLog? diagnostics = null)
     {
         var origin = target.ToPhysical(positionDip);
         var x = (int)Math.Round(origin.X);
@@ -38,10 +40,21 @@ public static class WindowPlacer
         var width = (int)Math.Round(target.ToPhysical(widthDip));
         var height = (int)Math.Round(target.ToPhysical(heightDip));
 
+        var first = false;
         for (var attempt = 0; attempt < 2; attempt++)
         {
             _ = PlacePhysical(hwnd, x, y, width, height);
-            if (LandingVerdict(hwnd, target, x, y, width, height)) return true;
+            var landed = LandingVerdict(hwnd, target, x, y, width, height);
+            if (attempt == 0) first = landed;
+            if (landed || attempt == 1)
+            {
+                var readable = TryGetPhysicalRect(hwnd, out var actual);
+                diagnostics?.Vital($"summon-landed first={first} final={landed} repair={attempt > 0} " +
+                    $"intent={x},{y},{width},{height} readable={readable} " +
+                    $"actual={actual.Left},{actual.Top},{actual.Right - actual.Left},{actual.Bottom - actual.Top} " +
+                    $"visible={NativeMethods.IsWindowVisible(hwnd)}");
+                return landed;
+            }
         }
         return false;
     }

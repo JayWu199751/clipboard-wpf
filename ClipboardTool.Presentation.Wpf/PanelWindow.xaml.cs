@@ -52,6 +52,7 @@ public partial class PanelWindow : Window
     private bool _syncingSelection;
     private bool _suppressQueryEvents; // 程序性写查询文本（重置/清除）时不进防抖
     private bool _composing;           // 搜索输入框 IME 组合中的本地镜像（Esc 取消组合的兜底恢复用）
+    private readonly DiagnosticLog _diagnostics;
 
     /// <summary>双击卡片：复制并粘贴该条目（F11 第二入口；单击仅选中）。Enter 键路径复用同一事件。</summary>
     public event Action<string>? CardPasteRequested;
@@ -77,8 +78,11 @@ public partial class PanelWindow : Window
     /// <summary>备注取消（Esc：不保存直接退态）。</summary>
     public event Action? NoteEditExitRequested;
 
-    public PanelWindow()
+    public PanelWindow() : this(DiagnosticLog.None) { }
+
+    public PanelWindow(DiagnosticLog diagnostics)
     {
+        _diagnostics = diagnostics;
         InitializeComponent();
         _viewModel = new PanelViewModel();
         DataContext = _viewModel;
@@ -178,8 +182,12 @@ public partial class PanelWindow : Window
             cursor?.WorkAreaDip,
             primary?.WorkAreaDip ?? new WorkAreaDip(0, 0, 1920, 1040));
 
-        _ = screen is { } metrics
-            && WindowPlacer.PlaceSummonDip(Hwnd, metrics, position, size.Width, size.Height);
+        var landed = screen is { } metrics
+            && WindowPlacer.PlaceSummonDip(Hwnd, metrics, position, size.Width, size.Height, _diagnostics);
+        if (!landed)
+        {
+            _diagnostics.Vital($"summon-failed reason={(screen is null ? "no-monitor" : "landing-verdict")}");
+        }
 
         _docked = false;
         ForEachThumbnailHost(host => host.Request()); // 呼出预热已实现容器（停靠时已回收）

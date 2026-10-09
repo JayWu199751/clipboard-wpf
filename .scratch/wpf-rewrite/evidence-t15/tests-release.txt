@@ -1,0 +1,9 @@
+  ClipboardTool.Domain -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Domain\bin\Release\net10.0\ClipboardTool.Domain.dll
+  ClipboardTool.Application -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Application\bin\Release\net10.0\ClipboardTool.Application.dll
+  ClipboardTool.Infrastructure.Windows -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Infrastructure.Windows\bin\Release\net10.0-windows\ClipboardTool.Infrastructure.Windows.dll
+  ClipboardTool.Presentation.Wpf -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Presentation.Wpf\bin\Release\net10.0-windows\ClipboardTool.dll
+  ClipboardTool.Tests -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Tests\bin\Release\net10.0-windows\ClipboardTool.Tests.dll
+C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Tests\bin\Release\net10.0-windows\ClipboardTool.Tests.dll (.NETCoreApp,Version=v10.0)的测试运行
+总共 1 个测试文件与指定模式相匹配。
+
+已通过! - 失败:     0，通过:   485，已跳过:     0，总计:   485，持续时间: 669 ms - ClipboardTool.Tests.dll (net10.0)

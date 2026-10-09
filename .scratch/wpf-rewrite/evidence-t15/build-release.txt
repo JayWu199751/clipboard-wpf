@@ -1,0 +1,12 @@
+  BaselineSampler -> C:\Users\10854\Code\Clipboard-WPF\tools\BaselineSampler\bin\Release\net10.0-windows\BaselineSampler.dll
+  ClipboardTool.Domain -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Domain\bin\Release\net10.0\ClipboardTool.Domain.dll
+  ClipboardTool.Application -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Application\bin\Release\net10.0\ClipboardTool.Application.dll
+  ClipboardTool.Infrastructure.Windows -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Infrastructure.Windows\bin\Release\net10.0-windows\ClipboardTool.Infrastructure.Windows.dll
+  ClipboardTool.Presentation.Wpf -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Presentation.Wpf\bin\Release\net10.0-windows\ClipboardTool.dll
+  ClipboardTool.Tests -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Tests\bin\Release\net10.0-windows\ClipboardTool.Tests.dll
+
+已成功生成。
+    0 个警告
+    0 个错误
+
+已用时间 00:00:00.86

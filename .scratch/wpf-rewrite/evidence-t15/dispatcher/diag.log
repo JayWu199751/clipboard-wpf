@@ -1,0 +1,11 @@
+2026-10-09T16:50:11.9119243+00:00 vital pid=27660 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-09T16:50:11.9632811+00:00 vital pid=27660 startup-channel elevated=False autostart=False
+2026-10-09T16:50:12.2854035+00:00 vital pid=27660 tray-ready added=True
+2026-10-09T16:50:12.4570246+00:00 vital pid=27660 hotkey_register accel=Control+Alt+Shift+F12 ok=True
+2026-10-09T16:50:12.4575248+00:00 vital pid=27660 window-ready ui=wpf hwnd=0x2F0A2A
+2026-10-09T16:50:12.4774622+00:00 vital pid=27660 warmup ui=wpf docked=True readable=True actual=2590,48,3300,1466
+2026-10-09T16:50:12.4811131+00:00 vital pid=27660 wpf-ui-ready
+2026-10-09T16:50:12.5299887+00:00 vital pid=27660 unhandled-exception source=wpf-dispatcher terminating=True
+2026-10-09T16:50:12.5307265+00:00 vital pid=27660 exit-requested source=wpf-dispatcher code=runtime
+2026-10-09T16:50:12.5329058+00:00 vital pid=27660 unhandled-exception source=appdomain terminating=True
+2026-10-09T16:50:12.5331935+00:00 vital pid=27660 exit-requested source=appdomain code=runtime

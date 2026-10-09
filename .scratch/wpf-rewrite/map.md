@@ -31,6 +31,7 @@
 | T08 | F35–F38、F39–F40（收尾） | 提权清单、静默任务、登录触发器、NSIS 安装/升级/卸载 |
 | T09 | F48 + 全量 | 无障碍、性能前后对比、验收矩阵逐项、切换回退演练 |
 | 14（失败票） | F06（F22 匹配侧既有单测覆盖） | 来源应用采集接线（IForegroundSource/ForegroundSource/监听接线），终审矩阵开票后补齐 |
+| 15（失败票） | F40（F39 退出读数） | vital/verbose 分档、512KB 一代轮转、panic 异常取证、进程/窗口/执行者节点读数；2026-10-10 补齐 |
 | 16（终审） | F17（①③；②由 P5/T01 达成） | 单击外部停靠与点击时间窗（ExternalClickRules/MouseHook/DockIfClickedOutside），终审两轴评审补齐 |
 | 17（用户报告） | F26（面板主题按钮入口） | 搜索井内主题按钮接线（占位 Border → 真按钮三态循环 + 井点击排除 PanelHeaderRules + App Toggle 接线），用户真机报告后补齐 |
 
@@ -167,4 +168,5 @@ HTML 原型不能证明 P1–P5；这些是 T01/T02/T06/T07 的阻塞或并行�
   **457/457 全绿（+5）、零警告**；真机 E2E tools/E2eT14 11/11 PASS（驱动自带 WPF 前台窗口作来源——本机 notepad 为商店版无窗存根不可靠；ForceForeground 归因验证、图标 PNG 签名、缓存路径、存档备份恢复零残留）。F22 来源名匹配为既有 SearchRulesTests 覆盖。覆盖表已补 14 行。见 [14 票证据](issues/14-F06来源应用接线缺失.md)，Execution 已置 resolved。
 - 2026-10-04：**用户报告票 17（F26 面板主题按钮）完成**（真机报告「搜索框内亮暗切换按钮点击后进搜索」）：根因=T07 只落 ThemeService 与托盘入口，井内按钮停留占位 Border 无点击行为，点击命中 SearchWell 背景走隧道处理进搜索。修复按 legacy「操作」规格补齐：占位换真按钮（sun/moon/monitor 三图标按偏好、悬停底+当前与下一态 tooltip、Focusable=False 搜索态不抢焦点）→ ThemeToggleRequested → App 侧 ThemeService.Toggle（权威三态循环，失败保留偏好）；浏览态点按钮不进搜索=井隧道处理按命中来源排除按钮子树（PanelHeaderRules.ShouldActivateSearch 纯函数；隧道祖先先至，按钮侧 Handled 拦不住）；偏好经启动初值 + MenuChanged 回推与托盘子菜单同源。
   **465/465 全绿（+8）、零警告**（规则 4 例真值表 + VM 三态展示映射 4 例；AccessibilityNames 补 ThemeToggle）。见 [17 票证据](issues/17-F26面板主题按钮未接线.md)，Execution 已置 resolved。
-- 当前前沿：**17 票完成；剩失败票 15（F40 完整诊断）与内存门槛拍板为遗留事项**。
+- 2026-10-10：**15 票（F40 完整诊断）完成**：DiagnosticLog/IDiagnosticSink + FileDiagnosticSink + ProcessDiagnostics，默认关键路径留痕、详细事件精确门禁、512KB 一代轮转、异常类型/HRESULT/堆栈与 PID 追踪；多进程命名互斥量保护轮转与追加，写入故障不改变业务结果。App/窗口/执行者/监听轮次/任务收敛接线完成。**485/485 测试通过，Release 构建零警告、零错误**；隔离真实 App 进程探针覆盖正常/投递失败退出、三类呼出入口、UI/后台/任务异常、不可写路径与跨进程轮转，见 [15 票](issues/15-F40完整诊断语义未实现.md) 和 [证据](evidence-t15/e2e-result.txt)。
+- 当前前沿：**工单 15 与 17 均已完成；已记录的功能失败票均已补齐，正式内存门槛与既有人工验收仍待完成**。

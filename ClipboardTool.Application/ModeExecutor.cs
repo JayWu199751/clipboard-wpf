@@ -12,9 +12,11 @@ public sealed class ModeExecutor : IDisposable
 {
     private readonly BlockingCollection<Action> _queue = [];
     private readonly Thread _thread;
+    private readonly DiagnosticLog _diagnostics;
 
-    public ModeExecutor()
+    public ModeExecutor(DiagnosticLog? diagnostics = null)
     {
+        _diagnostics = diagnostics ?? DiagnosticLog.None;
         _thread = new Thread(RunLoop)
         {
             Name = "ClipboardTool.ModeExecutor",
@@ -24,7 +26,18 @@ public sealed class ModeExecutor : IDisposable
     }
 
     /// <summary>投递一个具名意图；按到达顺序在执行线程串行执行。</summary>
-    public void Post(Action intent) => _queue.Add(intent);
+    public void Post(Action intent)
+    {
+        try
+        {
+            _queue.Add(intent);
+        }
+        catch (InvalidOperationException)
+        {
+            _diagnostics.Vital("executor-dead intent=rejected");
+            throw;
+        }
+    }
 
     private void RunLoop()
     {
@@ -34,11 +47,14 @@ public sealed class ModeExecutor : IDisposable
             {
                 intent();
             }
-            catch
+            catch (Exception exception)
             {
+                _diagnostics.Vital("executor-failed intent=unhandled");
+                _diagnostics.Panic("mode-executor", exception);
                 // 意图失败不得终止执行线程；失败结果由意图自身经结果契约回报渲染层
             }
         }
+        _diagnostics.Vital("executor-exit");
     }
 
     public void Dispose()
