@@ -11,3 +11,12 @@ artifacts/
 
 # NSIS 构建产物（60MB 安装包不入库；publish/ 已由既有规则覆盖）
 installer/ClipboardTool-Setup.exe
+
+# 本机配置与临时文件
+.env
+.env.*
+!.env.example
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini

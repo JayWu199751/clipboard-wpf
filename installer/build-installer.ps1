@@ -1,6 +1,6 @@
 # ClipboardTool NSIS 安装包构建（F38）。
 # 用法（管理员不必需；构建机需 dotnet SDK 10 与 NSIS makensis）：
-#   powershell -File installer/build-installer.ps1
+#   pwsh.exe -NoProfile -File installer/build-installer.ps1
 # 产物：installer/ClipboardTool-Setup.exe
 
 $ErrorActionPreference = "Stop"
