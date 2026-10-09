@@ -18,16 +18,20 @@ public sealed record TrayMenuItem(
 /// 菜单按 TrayMenuSpec 重建（文案随设置变化，托盘没有「就地改一条文案」的 seam）；
 /// 图标经 TrayIconSync（同键不重设、HICON 生命周期）+ PngIconFactory（五档精确尺寸）。
 /// 回调经隐藏的顶层窗口消息到达，宿主自行归队（与模式线程封闭模型一致）。
+/// 图标随外壳存亡：Explorer 重启或自启早于任务栏就绪时 NIM_ADD 会丢/败，
+/// 监听 TaskbarCreated 广播整只重加（SyncIcon 侧另有未加上的自愈兜底）。
 /// </summary>
 public sealed class TrayIconHost : IDisposable
 {
     private const uint TrayCallbackId = 1;
 
+    /// <summary>外壳重建托盘时的系统广播（值全系统一致，≥0xC000 不与 WM_APP 撞）。</summary>
+    private static readonly uint TaskbarCreatedMessage = RegisterTaskbarCreatedMessage();
+
     private readonly string _tooltip;
     private readonly TrayIconSync _iconSync;
+    private readonly Action<IReadOnlyList<TrayMenuItem>, Action<string>> _showMenu;
     private readonly List<TrayMenuItem> _menuItems = [];
-    private readonly Dictionary<uint, string> _commandMap = []; // Win32 菜单 id → 逻辑 id
-    private uint _nextCommandId = 1;
     private HwndSource? _source;
     private IntPtr _hwnd;
     private bool _added;
@@ -42,25 +46,19 @@ public sealed class TrayIconHost : IDisposable
     /// <summary>菜单项选中（逻辑 id；非主题项的 id 宿主自行分发）。</summary>
     public event Action<string>? MenuItemSelected;
 
-    public TrayIconHost(string tooltip, TrayIconSync? iconSync = null)
+    public TrayIconHost(string tooltip,
+        Action<IReadOnlyList<TrayMenuItem>, Action<string>> showMenu,
+        TrayIconSync? iconSync = null)
     {
         _tooltip = tooltip;
+        _showMenu = showMenu;
         _iconSync = iconSync ?? new TrayIconSync(new PngIconFactory());
 
         _source = new HwndSource(0, 0, 0, 0, 0, 0, 0, "ClipboardToolTray", IntPtr.Zero);
         _hwnd = _source.Handle;
         _source.AddHook(WndProc);
 
-        var data = new NativeMethods.NOTIFYICONDATAW
-        {
-            cbSize = Marshal.SizeOf<NativeMethods.NOTIFYICONDATAW>(),
-            hWnd = _hwnd,
-            uID = TrayCallbackId,
-            uFlags = NativeMethods.NIF_MESSAGE | NativeMethods.NIF_ICON | NativeMethods.NIF_TIP,
-            uCallbackMessage = NativeMethods.WM_APP_TRAY,
-            hIcon = NativeMethods.LoadIcon(IntPtr.Zero, (IntPtr)32512), // IDI_APPLICATION 占位，SyncIcon 落正式图
-            szTip = tooltip,
-        };
+        var data = BuildFullIconData(NativeMethods.LoadIcon(IntPtr.Zero, (IntPtr)32512)); // IDI_APPLICATION 占位，SyncIcon 落正式图
         _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref data);
     }
 
@@ -71,12 +69,23 @@ public sealed class TrayIconHost : IDisposable
         _menuItems.AddRange(items);
     }
 
-    /// <summary>按当前明暗与主屏缩放同步托盘图标（同键内部去重）。</summary>
+    /// <summary>按当前明暗与主屏缩放同步托盘图标（同键内部去重）。未加上时走整只添加自愈。</summary>
     public void SyncIcon(bool dark, double scale)
     {
         var hicon = _iconSync.Sync(dark, scale);
         if (hicon == IntPtr.Zero || hicon == _currentIcon)
         {
+            return;
+        }
+        if (!_added)
+        {
+            // 初次 NIM_ADD 败了（如自启早于任务栏就绪且广播未至）：正式图直接整只补上
+            var add = BuildFullIconData(hicon);
+            _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref add);
+            if (_added)
+            {
+                _currentIcon = hicon;
+            }
             return;
         }
         var data = new NativeMethods.NOTIFYICONDATAW
@@ -93,8 +102,59 @@ public sealed class TrayIconHost : IDisposable
         }
     }
 
+    /// <summary>完整形态的图标条目（消息+图+提示）：初次添加与外壳重建重加共用。</summary>
+    private NativeMethods.NOTIFYICONDATAW BuildFullIconData(IntPtr hIcon) => new()
+    {
+        cbSize = Marshal.SizeOf<NativeMethods.NOTIFYICONDATAW>(),
+        hWnd = _hwnd,
+        uID = TrayCallbackId,
+        uFlags = NativeMethods.NIF_MESSAGE | NativeMethods.NIF_ICON | NativeMethods.NIF_TIP,
+        uCallbackMessage = NativeMethods.WM_APP_TRAY,
+        hIcon = hIcon,
+        szTip = _tooltip,
+    };
+
+    /// <summary>外壳重建（TaskbarCreated）后整只重加：旧条目已随旧外壳蒸发，删是幂等清账。</summary>
+    private void ReaddIcon()
+    {
+        if (_added)
+        {
+            var remove = new NativeMethods.NOTIFYICONDATAW
+            {
+                cbSize = Marshal.SizeOf<NativeMethods.NOTIFYICONDATAW>(),
+                hWnd = _hwnd,
+                uID = TrayCallbackId,
+            };
+            _ = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_DELETE, ref remove);
+            _added = false;
+        }
+        var hicon = _currentIcon != IntPtr.Zero
+            ? _currentIcon // 句柄归本进程所有，外壳重启不影响其有效性
+            : NativeMethods.LoadIcon(IntPtr.Zero, (IntPtr)32512);
+        var add = BuildFullIconData(hicon);
+        _added = NativeMethods.Shell_NotifyIconW(NativeMethods.NIM_ADD, ref add);
+    }
+
+    private static uint RegisterTaskbarCreatedMessage()
+    {
+        try
+        {
+            return NativeMethods.RegisterWindowMessageW("TaskbarCreated");
+        }
+        catch (Exception)
+        {
+            return 0; // 注册失败按「永不广播」处理：退化回旧行为，不崩
+        }
+    }
+
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (TaskbarCreatedMessage != 0 && (uint)msg == TaskbarCreatedMessage)
+        {
+            ReaddIcon(); // Explorer 重启托盘清空：整只重加，否则图标随旧外壳蒸发
+            handled = true;
+            return IntPtr.Zero;
+        }
         if (msg != NativeMethods.WM_APP_TRAY)
         {
             return IntPtr.Zero;
@@ -131,57 +191,11 @@ public sealed class TrayIconHost : IDisposable
 
     private void ShowMenu()
     {
-        _commandMap.Clear();
-        _nextCommandId = 1;
-        var menu = BuildMenu(_menuItems);
-        if (menu == IntPtr.Zero)
-        {
-            return;
-        }
-        _ = NativeMethods.GetCursorPos(out var point);
         // 先 SetForegroundWindow，点击菜单外区域才能让菜单收起（托盘菜单经典要求）
         _ = NativeMethods.SetForegroundWindow(_hwnd);
-        var command = NativeMethods.TrackPopupMenuEx(
-            menu,
-            NativeMethods.TPM_RETURNCMD | NativeMethods.TPM_NONOTIFY | NativeMethods.TPM_RIGHTBUTTON,
-            point.X, point.Y, _hwnd, IntPtr.Zero);
+        // 菜单由渲染层呈现，才能复用应用主题；命令仍通过同一逻辑 id 分发。
+        _showMenu(_menuItems, id => MenuItemSelected?.Invoke(id));
         _ = NativeMethods.PostMessageW(_hwnd, NativeMethods.WM_NULL, IntPtr.Zero, IntPtr.Zero);
-        _ = NativeMethods.DestroyMenu(menu);
-
-        if (command != 0 && _commandMap.TryGetValue((uint)command, out var id))
-        {
-            MenuItemSelected?.Invoke(id);
-        }
-    }
-
-    /// <summary>递归构建 Win32 菜单（分隔线/勾选/子菜单）。失败返回 IntPtr.Zero。</summary>
-    private IntPtr BuildMenu(IReadOnlyList<TrayMenuItem> items)
-    {
-        var menu = NativeMethods.CreatePopupMenu();
-        foreach (var item in items)
-        {
-            if (item.Separator)
-            {
-                _ = NativeMethods.AppendMenuW(menu, NativeMethods.MF_SEPARATOR, UIntPtr.Zero, string.Empty);
-                continue;
-            }
-            if (item.SubItems is { } subItems)
-            {
-                var sub = BuildMenu(subItems);
-                if (sub == IntPtr.Zero)
-                {
-                    continue;
-                }
-                var flags = NativeMethods.MF_POPUP | (item.Checked ? NativeMethods.MF_CHECKED : 0u);
-                _ = NativeMethods.AppendMenuW(menu, flags, (UIntPtr)sub.ToInt64(), item.Label ?? string.Empty);
-                continue;
-            }
-            var command = _nextCommandId++;
-            _commandMap[command] = item.Id;
-            var itemFlags = NativeMethods.MF_STRING | (item.Checked ? NativeMethods.MF_CHECKED : 0u);
-            _ = NativeMethods.AppendMenuW(menu, itemFlags, (UIntPtr)command, item.Label ?? string.Empty);
-        }
-        return menu;
     }
 
     public void Dispose()
@@ -204,5 +218,6 @@ public sealed class TrayIconHost : IDisposable
         _source?.RemoveHook(WndProc);
         _source?.Dispose();
         _source = null;
+        _iconSync.Dispose();
     }
 }

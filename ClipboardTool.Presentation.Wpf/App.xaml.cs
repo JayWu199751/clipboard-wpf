@@ -26,6 +26,7 @@ public partial class App : System.Windows.Application
     private PendingDeletionService? _deletion;
     private ThemeService? _theme;
     private TrayIconHost? _tray;
+    private TrayContextMenu? _trayMenu;
     private MouseHook? _mouseHook;
     private JsonStore? _settingsStore;
     private AppSettings _settings = AppSettings.Default;
@@ -196,7 +197,8 @@ public partial class App : System.Windows.Application
 
         // —— 托盘（F29/F30/F33）：完整菜单六项 + 主题子菜单；五档精确图标按主屏缩放取档；
         //    主题/缩放变化经 TrayIconSync 同键去重后落地。 ——
-        _tray = new TrayIconHost("ClipboardTool");
+        _trayMenu = new TrayContextMenu(Resources);
+        _tray = new TrayIconHost("ClipboardTool", _trayMenu.Show);
         _tray.SummonRequested += SummonFromTray;
         _tray.PointerEntered += () => Dispatcher.BeginInvoke(() => SyncTrayIcon(_theme!.IsTrayDark));
         _tray.MenuItemSelected += id => Dispatcher.BeginInvoke(() => OnTrayMenu(id));
@@ -225,6 +227,8 @@ public partial class App : System.Windows.Application
         _clipboardSource?.Dispose();
         _mouseHook?.Dispose();
         _executor?.Dispose();
+        _trayMenu?.Dispose();
+        _tray?.Dispose();
         base.OnExit(e);
     }
 

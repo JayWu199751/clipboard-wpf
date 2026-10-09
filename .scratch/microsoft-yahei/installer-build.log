@@ -1,0 +1,27 @@
+  正在确定要还原的项目…
+  所有项目均是最新的，无法还原。
+  ClipboardTool.Domain -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Domain\bin\Release\net10.0\ClipboardTool.Domain.dll
+  ClipboardTool.Application -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Application\bin\Release\net10.0\ClipboardTool.Application.dll
+  ClipboardTool.Infrastructure.Windows -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Infrastructure.Windows\bin\Release\net10.0-windows\ClipboardTool.Infrastructure.Windows.dll
+  ClipboardTool.Presentation.Wpf -> C:\Users\10854\Code\Clipboard-WPF\ClipboardTool.Presentation.Wpf\bin\Release\net10.0-windows\win-x64\ClipboardTool.dll
+  ClipboardTool.Presentation.Wpf -> C:\Users\10854\Code\Clipboard-WPF\installer\publish\
+Processing config: C:\Program Files (x86)\NSIS\nsisconf.nsh
+Processing script file: "C:\Users\10854\Code\Clipboard-WPF\installer\ClipboardTool.nsi" (UTF8)
+
+Processed 1 file, writing output (x86-unicode):
+
+Output: "C:\Users\10854\Code\Clipboard-WPF\installer\ClipboardTool-Setup.exe"
+Install: 4 pages (256 bytes), 1 section (2072 bytes), 850 instructions (23800 bytes), 480 strings (20728 bytes), 1 language table (302 bytes).
+Uninstall: 2 pages (192 bytes), 1 section (2072 bytes), 89 instructions (2492 bytes), 114 strings (2710 bytes), 1 language table (254 bytes).
+Datablock optimizer saved 592775 bytes (~0.9%).
+
+Using zlib compression.
+
+EXE header size:               52736 / 39936 bytes
+Install code:                   9597 / 47622 bytes
+Install data:               62883125 / 146926595 bytes
+Uninstall code+data:           15459 / 19779 bytes
+CRC (0x6846B09C):                  4 / 4 bytes
+
+Total size:                 62960921 / 147033936 bytes (42.8%)
+安装包：C:\Users\10854\Code\Clipboard-WPF\installer\ClipboardTool-Setup.exe  体积：60.0 MB

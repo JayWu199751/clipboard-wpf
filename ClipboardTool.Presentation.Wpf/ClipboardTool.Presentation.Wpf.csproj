@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets/ClipboardTool.ico</ApplicationIcon>
     <RootNamespace>ClipboardTool.Presentation.Wpf</RootNamespace>
     <AssemblyName>ClipboardTool</AssemblyName>
     <!-- 清单双形态（F35）：发布 requireAdministrator（直接运行即 UAC），开发 asInvoker -->
