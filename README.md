@@ -2,6 +2,14 @@
 
 一个面向 Windows 的本地剪贴板历史工具，使用 C#、WPF 和 .NET 10 编写。常驻系统托盘，通过快捷键呼出面板，搜索、置顶并粘贴此前复制的文字和图片。
 
+## 应用截图
+
+亮色与暗色主题（当前 WPF 界面，使用示例内容）：
+
+| 亮色 | 暗色 |
+| --- | --- |
+| <img src="docs/screenshots/panel-light.png" alt="Clipboard WPF 亮色主题，展示剪贴板历史、置顶与备注" width="360"> | <img src="docs/screenshots/panel-dark.png" alt="Clipboard WPF 暗色主题，展示剪贴板历史与键盘操作提示" width="360"> |
+
 ## 安装
 
 从 [Releases](https://github.com/JayWu199751/clipboard-wpf/releases/latest) 下载 `ClipboardTool-Setup.exe`，运行安装即可。
