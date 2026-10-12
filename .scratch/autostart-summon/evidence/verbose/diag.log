@@ -1,0 +1,70 @@
+2026-10-12T14:43:51.2803765+00:00 vital pid=5956 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-12T14:43:51.3302513+00:00 vital pid=5956 startup-channel elevated=False autostart=False
+2026-10-12T14:43:51.6133989+00:00 verbose pid=5956 clipboard-source ready=True
+2026-10-12T14:43:51.6649425+00:00 vital pid=5956 tray-ready added=True
+2026-10-12T14:43:51.8217673+00:00 vital pid=5956 hotkey_register accel=Control+Alt+Shift+F12 ok=True
+2026-10-12T14:43:51.8222208+00:00 vital pid=5956 window-ready ui=wpf hwnd=0xB0930
+2026-10-12T14:43:51.8422964+00:00 vital pid=5956 warmup ui=wpf docked=True readable=True actual=2590,48,3300,1466
+2026-10-12T14:43:51.8440527+00:00 verbose pid=5956 startup-converge development=True elevated=False intent=False
+2026-10-12T14:43:51.8464050+00:00 vital pid=5956 wpf-ui-ready
+2026-10-12T14:43:51.8870712+00:00 vital pid=5956 summon-req src=hotkey
+2026-10-12T14:43:51.8877615+00:00 vital pid=5956 summon-run src=hotkey latency_ms=0.6
+2026-10-12T14:43:51.8902796+00:00 verbose pid=5956 hotkey_register accel=Up ok=True
+2026-10-12T14:43:51.8905741+00:00 verbose pid=5956 hotkey_register accel=Down ok=True
+2026-10-12T14:43:51.8910392+00:00 verbose pid=5956 hotkey_register accel=Enter ok=True
+2026-10-12T14:43:51.8913432+00:00 verbose pid=5956 hotkey_register accel=Esc ok=True
+2026-10-12T14:43:51.8915527+00:00 verbose pid=5956 hotkey_register accel=Delete ok=True
+2026-10-12T14:43:51.8917745+00:00 verbose pid=5956 hotkey_register accel=Z ok=True
+2026-10-12T14:43:51.8919718+00:00 verbose pid=5956 hotkey_register accel=B ok=True
+2026-10-12T14:43:51.8936503+00:00 verbose pid=5956 hotkey_register accel=Space ok=True
+2026-10-12T14:43:51.9415869+00:00 vital pid=5956 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True placed=True
+2026-10-12T14:43:52.0043112+00:00 vital pid=5956 summon-req src=tray-menu
+2026-10-12T14:43:52.0047288+00:00 vital pid=5956 summon-run src=tray-menu latency_ms=0.4
+2026-10-12T14:43:52.0050146+00:00 vital pid=5956 summon-refresh reason=already-visible
+2026-10-12T14:43:52.0063144+00:00 vital pid=5956 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True placed=True
+2026-10-12T14:43:52.0798846+00:00 vital pid=5956 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-12T14:43:52.0805855+00:00 vital pid=5956 summon-req src=tray-click
+2026-10-12T14:43:52.0808675+00:00 vital pid=5956 summon-run src=tray-click latency_ms=0.3
+2026-10-12T14:43:52.0812244+00:00 verbose pid=5956 hotkey_register accel=Up ok=True
+2026-10-12T14:43:52.0814499+00:00 verbose pid=5956 hotkey_register accel=Down ok=True
+2026-10-12T14:43:52.0816748+00:00 verbose pid=5956 hotkey_register accel=Enter ok=True
+2026-10-12T14:43:52.0819733+00:00 verbose pid=5956 hotkey_register accel=Esc ok=True
+2026-10-12T14:43:52.0822278+00:00 verbose pid=5956 hotkey_register accel=Delete ok=True
+2026-10-12T14:43:52.0825124+00:00 verbose pid=5956 hotkey_register accel=Z ok=True
+2026-10-12T14:43:52.0830856+00:00 verbose pid=5956 hotkey_register accel=B ok=True
+2026-10-12T14:43:52.0835868+00:00 verbose pid=5956 hotkey_register accel=Space ok=True
+2026-10-12T14:43:52.0876868+00:00 vital pid=5956 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True placed=True
+2026-10-12T14:43:52.0894056+00:00 vital pid=5956 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-12T14:43:52.1022853+00:00 vital pid=5956 summon-req src=tray-menu
+2026-10-12T14:43:52.1026455+00:00 vital pid=5956 summon-run src=tray-menu latency_ms=0.4
+2026-10-12T14:43:52.1029005+00:00 verbose pid=5956 hotkey_register accel=Up ok=True
+2026-10-12T14:43:52.1036244+00:00 verbose pid=5956 hotkey_register accel=Down ok=True
+2026-10-12T14:43:52.1040775+00:00 verbose pid=5956 hotkey_register accel=Enter ok=True
+2026-10-12T14:43:52.1045016+00:00 verbose pid=5956 hotkey_register accel=Esc ok=True
+2026-10-12T14:43:52.1047873+00:00 verbose pid=5956 hotkey_register accel=Delete ok=True
+2026-10-12T14:43:52.1050679+00:00 verbose pid=5956 hotkey_register accel=Z ok=True
+2026-10-12T14:43:52.1052783+00:00 verbose pid=5956 hotkey_register accel=B ok=True
+2026-10-12T14:43:52.1054926+00:00 verbose pid=5956 hotkey_register accel=Space ok=True
+2026-10-12T14:43:52.1091383+00:00 vital pid=5956 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True placed=True
+2026-10-12T14:43:52.1347566+00:00 vital pid=5956 hide reason=hotkey-toggle restore_focus=True readable=True actual=2590,48,3220,1308
+2026-10-12T14:43:52.2862013+00:00 vital pid=25212 start ui=wpf development=True exe=C:\Users\10854\Code\Clipboard-WPF\tools\E2eT15\bin\Debug\net10.0-windows\E2eT15.exe
+2026-10-12T14:43:52.3398486+00:00 vital pid=25212 startup-channel elevated=False autostart=False
+2026-10-12T14:43:52.3408473+00:00 vital pid=25212 instance-secondary delivery=requested
+2026-10-12T14:43:52.3473630+00:00 vital pid=5956 summon-req src=instance
+2026-10-12T14:43:52.3479505+00:00 vital pid=5956 summon-run src=instance latency_ms=0.6
+2026-10-12T14:43:52.3483301+00:00 vital pid=25212 instance-secondary delivery=True
+2026-10-12T14:43:52.3484448+00:00 verbose pid=5956 hotkey_register accel=Up ok=True
+2026-10-12T14:43:52.3488381+00:00 vital pid=25212 exit-requested source=secondary-instance code=0
+2026-10-12T14:43:52.3490961+00:00 verbose pid=5956 hotkey_register accel=Down ok=True
+2026-10-12T14:43:52.3497176+00:00 verbose pid=5956 hotkey_register accel=Enter ok=True
+2026-10-12T14:43:52.3499674+00:00 verbose pid=5956 hotkey_register accel=Esc ok=True
+2026-10-12T14:43:52.3502294+00:00 verbose pid=5956 hotkey_register accel=Delete ok=True
+2026-10-12T14:43:52.3504542+00:00 verbose pid=5956 hotkey_register accel=Z ok=True
+2026-10-12T14:43:52.3506523+00:00 verbose pid=5956 hotkey_register accel=B ok=True
+2026-10-12T14:43:52.3508693+00:00 verbose pid=5956 hotkey_register accel=Space ok=True
+2026-10-12T14:43:52.3517750+00:00 vital pid=25212 exit code=0
+2026-10-12T14:43:52.3548524+00:00 vital pid=5956 summon-landed first=True final=True repair=False intent=964,114,630,1260 readable=True actual=964,114,630,1260 visible=True placed=True
+2026-10-12T14:43:52.3960945+00:00 verbose pid=5956 clipboard-round settled=True baseline_pending=False
+2026-10-12T14:43:52.4121283+00:00 vital pid=5956 exit-requested source=tray-menu code=0
+2026-10-12T14:43:52.4194793+00:00 vital pid=5956 executor-exit
+2026-10-12T14:43:52.4314916+00:00 vital pid=5956 exit code=0

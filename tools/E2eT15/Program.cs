@@ -191,6 +191,7 @@ internal static class Program
                     // 发送真实 WM_HOTKEY / 托盘回调消息；这不是物理键盘或鼠标验收。
                     Toggle(panel);
                     await Until(() => !panel.IsDocked);
+                    await VerifyVisibleResummon(panel, trayHwnd, menu);
                     Toggle(panel);
                     await Until(() => panel.IsDocked);
                     _ = SendMessageW(trayHwnd, 0x8001, IntPtr.Zero, new IntPtr(0x0202));
@@ -263,6 +264,27 @@ internal static class Program
     private static void Toggle(PanelWindow panel) =>
         SendMessageW(panel.Hwnd, 0x0312, new IntPtr(1), IntPtr.Zero);
 
+    private static async Task VerifyVisibleResummon(PanelWindow panel, IntPtr trayHwnd, TrayContextMenu menu)
+    {
+        var rect = WindowPlacer.GetPhysicalRect(panel.Hwnd);
+        var coverHwnd = CreateWindowExW(0x08000080, "BUTTON", "呼出遮挡回归验证", 0x80000000,
+            rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top,
+            IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        Check(coverHwnd != IntPtr.Zero, "创建隔离遮挡窗口");
+        try
+        {
+            Check(SetWindowPos(coverHwnd, new IntPtr(-1), rect.Left, rect.Top,
+                rect.Right - rect.Left, rect.Bottom - rect.Top, 0x50), "显示隔离遮挡窗口且不激活");
+            var center = new PointNative { X = (rect.Left + rect.Right) / 2, Y = (rect.Top + rect.Bottom) / 2 };
+            await Until(() => WindowFromPoint(center) == coverHwnd);
+            MenuCommand(trayHwnd, menu, "显示剪贴板面板");
+            await Until(() => WindowFromPoint(center) == panel.Hwnd);
+            // 打开托盘菜单本身会改变前台归属；此处验证呼出不激活面板，焦点不变由原生回归测试验证。
+            Check(GetForegroundWindow() != panel.Hwnd, "已呼出的面板被遮挡后，托盘再次显示将其带到前方且不激活面板");
+        }
+        finally { DestroyWindow(coverHwnd); }
+    }
+
     private static void MenuCommand(IntPtr hwnd, TrayContextMenu menu, string header)
     {
         _ = SendMessageW(hwnd, 0x8001, IntPtr.Zero, new IntPtr(0x0205));
@@ -305,6 +327,17 @@ internal static class Program
     private static extern int WerSetFlags(uint flags);
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PointNative { public int X, Y; }
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(PointNative point);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateWindowExW(uint exStyle, string className, string title, uint style,
+        int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
+    [DllImport("user32.dll")]
+    private static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr insertAfter, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")]

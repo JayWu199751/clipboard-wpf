@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="1.0.0.0" name="ClipboardTool.Presentation.Wpf"/>
+  <assemblyIdentity version="1.0.1.0" name="ClipboardTool.Presentation.Wpf"/>
 
   <!-- 开发/测试构建：不提权（F35）。发布构建用 app.release.manifest（csproj 按配置选择）。
        提权正式入口=计划任务静默通道；直接运行发布产物才走 UAC。 -->

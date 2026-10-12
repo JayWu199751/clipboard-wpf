@@ -480,13 +480,21 @@ public partial class App : System.Windows.Application
     private void SummonPanel(string source, long requestedAt)
     {
         _diagnostics.Vital($"summon-run src={source} latency_ms={Stopwatch.GetElapsedTime(requestedAt).TotalMilliseconds:F1}");
-        if (_panel is not { IsDocked: true })
+        if (_panel is null)
         {
-            _diagnostics.Vital($"summon-skipped reason={(_panel is null ? "not-ready" : "already-visible")}");
+            _diagnostics.Vital("summon-skipped reason=not-ready");
             return;
         }
-        _coordinator!.EnsureFocusSnapshot();
-        _coordinator.Show();
+        if (_panel.IsDocked)
+        {
+            _coordinator!.EnsureFocusSnapshot();
+            _coordinator.Show();
+        }
+        else
+        {
+            // 可见意图不代表未被遮挡；托盘/第二实例再次呼出仍刷新几何与置顶，保留输入态和焦点快照。
+            _diagnostics.Vital("summon-refresh reason=already-visible");
+        }
         _panel.Summon();
     }
 

@@ -16,6 +16,8 @@ internal static class NativeMethods
     public const int MDT_EFFECTIVE_DPI = 0;
 
     // SetWindowPos
+    public static readonly IntPtr HwndTopmost = new(-1);
+    public static readonly IntPtr HwndNotTopmost = new(-2);
     public const uint SWP_NOZORDER = 0x0004;
     public const uint SWP_NOACTIVATE = 0x0010;
 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-  <assemblyIdentity version="1.0.0.0" name="ClipboardTool.Presentation.Wpf"/>
+  <assemblyIdentity version="1.0.1.0" name="ClipboardTool.Presentation.Wpf"/>
 
   <!-- 发布构建：requireAdministrator——直接运行产物即 UAC 提权（F35）。
        日常免 UAC 入口=计划任务 ClipboardToolElevated（最高权限，静默拉起）；

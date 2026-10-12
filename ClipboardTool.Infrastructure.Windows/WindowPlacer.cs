@@ -43,8 +43,13 @@ public static class WindowPlacer
         var first = false;
         for (var attempt = 0; attempt < 2; attempt++)
         {
-            _ = PlacePhysical(hwnd, x, y, width, height);
-            var landed = LandingVerdict(hwnd, target, x, y, width, height);
+            // 开机启动后置顶样式仍可能存在，但实际 Z 序已落到普通应用后方。
+            // 先退出再重新加入置顶组，确保既有置顶位也能刷新；NOACTIVATE 保持浏览态焦点契约。
+            var placed = NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndNotTopmost, 0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
+            placed = placed && NativeMethods.SetWindowPos(hwnd, NativeMethods.HwndTopmost, x, y, width, height,
+                NativeMethods.SWP_NOACTIVATE);
+            var landed = placed && LandingVerdict(hwnd, target, x, y, width, height);
             if (attempt == 0) first = landed;
             if (landed || attempt == 1)
             {
@@ -52,7 +57,7 @@ public static class WindowPlacer
                 diagnostics?.Vital($"summon-landed first={first} final={landed} repair={attempt > 0} " +
                     $"intent={x},{y},{width},{height} readable={readable} " +
                     $"actual={actual.Left},{actual.Top},{actual.Right - actual.Left},{actual.Bottom - actual.Top} " +
-                    $"visible={NativeMethods.IsWindowVisible(hwnd)}");
+                    $"visible={NativeMethods.IsWindowVisible(hwnd)} placed={placed}");
                 return landed;
             }
         }

@@ -15,7 +15,7 @@ RequestExecutionLevel admin
 !include "x64.nsh"
 
 !define PRODUCT_NAME "ClipboardTool"
-!define PRODUCT_VERSION "1.0.0.0"
+!define PRODUCT_VERSION "1.0.1.0"
 !define PRODUCT_PUBLISHER "ClipboardTool Project"
 !define PRODUCT_GUID "{7E4A9C31-8F2D-4B6A-9C05-3A1D8E52F7B4}"
 !define TASK_NAME "ClipboardToolElevated"
